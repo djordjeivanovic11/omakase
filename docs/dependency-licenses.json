@@ -2380,6 +2380,7 @@
       "versions": [
         "2.20.3",
         "5.1.0",
+        "8.3.0",
         "9.5.0",
         "11.1.0",
         "12.1.0"
@@ -2387,6 +2388,7 @@
       "paths": [
         "/Users/dordeivanovic11/dev/omakase/node_modules/.pnpm/commander@2.20.3/node_modules/commander",
         "/Users/dordeivanovic11/dev/omakase/node_modules/.pnpm/commander@5.1.0/node_modules/commander",
+        "/Users/dordeivanovic11/dev/omakase/node_modules/.pnpm/commander@8.3.0/node_modules/commander",
         "/Users/dordeivanovic11/dev/omakase/node_modules/.pnpm/commander@9.5.0/node_modules/commander",
         "/Users/dordeivanovic11/dev/omakase/node_modules/.pnpm/commander@11.1.0/node_modules/commander",
         "/Users/dordeivanovic11/dev/omakase/node_modules/.pnpm/commander@12.1.0/node_modules/commander"
@@ -4151,6 +4153,18 @@
       "author": "Sindre Sorhus",
       "homepage": "https://github.com/sindresorhus/junk#readme",
       "description": "Filter out system junk files like .DS_Store and Thumbs.db"
+    },
+    {
+      "name": "katex",
+      "versions": [
+        "0.18.1"
+      ],
+      "paths": [
+        "/Users/dordeivanovic11/dev/omakase/node_modules/.pnpm/katex@0.18.1/node_modules/katex"
+      ],
+      "license": "MIT",
+      "homepage": "https://katex.org",
+      "description": "Fast math typesetting for the web."
     },
     {
       "name": "keyv",

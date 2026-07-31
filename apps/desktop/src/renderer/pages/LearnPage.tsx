@@ -1,12 +1,22 @@
 import type { AgentStreamEvent, Source, SourceBlock } from '@omakase/contracts';
-import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import {
+  type CSSProperties,
+  type KeyboardEvent,
+  type MutableRefObject,
+  type PointerEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
+import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { getApi } from '../api.js';
 import { Button } from '../components/Button.js';
 import { MarkdownText } from '../components/MarkdownText.js';
 import { formatCitationLabel, referenceLabel } from '../lib/citations-display.js';
 
 interface ChatLine {
+  id: string;
   role: 'user' | 'assistant';
   text: string;
   citations?: Array<{
@@ -18,12 +28,40 @@ interface ChatLine {
 }
 
 const OPENING_LEARN = 'Teach me from the top.';
+const SOURCE_SHARE_STORAGE_KEY = 'omakase.learn.sourceShare';
+const DEFAULT_SOURCE_SHARE = 54;
+const MIN_SOURCE_SHARE = 28;
+const MAX_SOURCE_SHARE = 72;
+
+function clampSourceShare(value: number): number {
+  if (!Number.isFinite(value)) return DEFAULT_SOURCE_SHARE;
+  return Math.min(MAX_SOURCE_SHARE, Math.max(MIN_SOURCE_SHARE, Math.round(value)));
+}
+
+function readSavedSourceShare(): number {
+  if (typeof window === 'undefined') return DEFAULT_SOURCE_SHARE;
+  const saved = Number(window.localStorage.getItem(SOURCE_SHARE_STORAGE_KEY));
+  return clampSourceShare(saved || DEFAULT_SOURCE_SHARE);
+}
+
+function createLine(
+  counter: MutableRefObject<number>,
+  role: ChatLine['role'],
+  text: string,
+  citations?: ChatLine['citations'],
+): ChatLine {
+  return {
+    id: `${role}-${Date.now()}-${counter.current++}`,
+    role,
+    text,
+    citations,
+  };
+}
 
 export function LearnPage() {
   const { sourceId } = useParams<{ sourceId: string }>();
   const [searchParams] = useSearchParams();
   const location = useLocation() as { state?: { studioId?: string } };
-  const navigate = useNavigate();
   const [sessionId, setSessionId] = useState<string | null>(null);
   const [studioId, setStudioId] = useState<string | null>(location.state?.studioId ?? null);
   const [source, setSource] = useState<Source | null>(null);
@@ -36,12 +74,16 @@ export function LearnPage() {
   const [activeBlockId, setActiveBlockId] = useState<number | null>(null);
   const [activeReferenceHandle, setActiveReferenceHandle] = useState<string | null>(null);
   const [narrowTab, setNarrowTab] = useState<'source' | 'teacher'>('teacher');
+  const [sourceShare, setSourceShare] = useState(readSavedSourceShare);
   const [diag, setDiag] = useState<{
     modelId?: string;
     provider?: string;
     mock?: boolean;
   } | null>(null);
   const assistantBuffer = useRef('');
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
+  const splitRef = useRef<HTMLDivElement | null>(null);
+  const nextLineId = useRef(0);
   const citationsRef = useRef<
     Array<{ handle: string; claimSummary: string; sourceBlockId?: number; label?: string }>
   >([]);
@@ -50,9 +92,12 @@ export function LearnPage() {
   const mode = searchParams.get('mode') === 'ask' ? 'research' : 'learn';
   const title = mode === 'research' ? 'Ask' : 'Learn';
   const [showDiag, setShowDiag] = useState(false);
+  const splitStyle = {
+    '--source-pane-share': `${sourceShare}%`,
+  } as CSSProperties;
+
   const visibleCitations = useMemo(
-    () =>
-      lines.flatMap((line) => (line.role === 'assistant' ? (line.citations ?? []) : [])),
+    () => lines.flatMap((line) => (line.role === 'assistant' ? (line.citations ?? []) : [])),
     [lines],
   );
   const citedHandlesByBlock = useMemo(() => {
@@ -65,6 +110,19 @@ export function LearnPage() {
     }
     return grouped;
   }, [visibleCitations]);
+
+  useEffect(() => {
+    window.localStorage.setItem(SOURCE_SHARE_STORAGE_KEY, String(sourceShare));
+  }, [sourceShare]);
+
+  useEffect(() => {
+    const textarea = composerRef.current;
+    if (!textarea) return;
+    const minHeight = message.includes('\n') ? 128 : 104;
+    textarea.style.height = 'auto';
+    const nextHeight = Math.min(Math.max(textarea.scrollHeight, minHeight), 280);
+    textarea.style.height = `${nextHeight}px`;
+  }, [message]);
 
   useEffect(() => {
     void getApi()
@@ -117,7 +175,7 @@ export function LearnPage() {
           openedRef.current = true;
           setBusy(true);
           setStatus('Reviewing your goal and sources…');
-          setLines([{ role: 'user', text: OPENING_LEARN }]);
+          setLines([createLine(nextLineId, 'user', OPENING_LEARN)]);
           await getApi().sendAgentMessage({
             sessionId: result.sessionId,
             message: OPENING_LEARN,
@@ -161,11 +219,9 @@ export function LearnPage() {
       if (event.type === 'final') {
         setLines((prev) => [
           ...prev,
-          {
-            role: 'assistant',
-            text: event.result.answerMarkdown,
-            citations: [...citationsRef.current],
-          },
+          createLine(nextLineId, 'assistant', event.result.answerMarkdown, [
+            ...citationsRef.current,
+          ]),
         ]);
         assistantBuffer.current = '';
         citationsRef.current = [];
@@ -174,7 +230,7 @@ export function LearnPage() {
         setStatus(null);
       }
       if (event.type === 'error') {
-        setLines((prev) => [...prev, { role: 'assistant', text: event.message }]);
+        setLines((prev) => [...prev, createLine(nextLineId, 'assistant', event.message)]);
         setBusy(false);
         setStatus(null);
       }
@@ -196,7 +252,7 @@ export function LearnPage() {
     if (!sessionId) return;
     const text = (override ?? message).trim();
     if (!text) return;
-    setLines((prev) => [...prev, { role: 'user', text }]);
+    setLines((prev) => [...prev, createLine(nextLineId, 'user', text)]);
     setMessage('');
     setBusy(true);
     setStatus('Reading your sources…');
@@ -205,22 +261,57 @@ export function LearnPage() {
     await getApi().sendAgentMessage({ sessionId, message: text });
   };
 
-  const jumpToCitation = (citation: {
-    handle: string;
-    sourceBlockId?: number;
-  }) => {
+  const jumpToCitation = (citation: { handle: string; sourceBlockId?: number }) => {
     if (!citation.sourceBlockId) return;
     setActiveBlockId(citation.sourceBlockId);
     setActiveReferenceHandle(citation.handle);
     setNarrowTab('source');
   };
 
-  const renderReferences = (
-    citations: NonNullable<ChatLine['citations']> | undefined,
-  ) => {
+  const updateSourceShareFromPointer = (clientX: number) => {
+    const rect = splitRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+    setSourceShare(clampSourceShare(((clientX - rect.left) / rect.width) * 100));
+  };
+
+  const beginSplitResize = (event: PointerEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    updateSourceShareFromPointer(event.clientX);
+    document.body.classList.add('learn-resizing');
+
+    const move = (moveEvent: globalThis.PointerEvent) => {
+      updateSourceShareFromPointer(moveEvent.clientX);
+    };
+    const stop = () => {
+      document.body.classList.remove('learn-resizing');
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', stop);
+    };
+
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', stop, { once: true });
+  };
+
+  const handleSplitKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      setSourceShare((share) => clampSourceShare(share - 4));
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      setSourceShare((share) => clampSourceShare(share + 4));
+    } else if (event.key === 'Home') {
+      event.preventDefault();
+      setSourceShare(MIN_SOURCE_SHARE);
+    } else if (event.key === 'End') {
+      event.preventDefault();
+      setSourceShare(MAX_SOURCE_SHARE);
+    }
+  };
+
+  const renderReferences = (citations: NonNullable<ChatLine['citations']> | undefined) => {
     if (!citations || citations.length === 0) return null;
     return (
-      <div className="reference-list" aria-label={`${citations.length} references`}>
+      <div className="reference-list">
         <div className="reference-list-title">References ({citations.length})</div>
         <div className="reference-list-items">
           {citations.map((citation) => (
@@ -262,21 +353,35 @@ export function LearnPage() {
             {source?.title ?? title}
           </h1>
         </div>
-        <div className="learn-tabs row">
-          <button
-            type="button"
-            className={narrowTab === 'source' ? 'tab active' : 'tab'}
-            onClick={() => setNarrowTab('source')}
-          >
-            Source
-          </button>
-          <button
-            type="button"
-            className={narrowTab === 'teacher' ? 'tab active' : 'tab'}
-            onClick={() => setNarrowTab('teacher')}
-          >
-            Teacher
-          </button>
+        <div className="learn-toolbar-actions">
+          <fieldset className="learn-layout-controls">
+            <legend className="visually-hidden">Pane size</legend>
+            <button type="button" onClick={() => setSourceShare(64)}>
+              Source
+            </button>
+            <button type="button" onClick={() => setSourceShare(50)}>
+              Even
+            </button>
+            <button type="button" onClick={() => setSourceShare(38)}>
+              Teacher
+            </button>
+          </fieldset>
+          <div className="learn-tabs row">
+            <button
+              type="button"
+              className={narrowTab === 'source' ? 'tab active' : 'tab'}
+              onClick={() => setNarrowTab('source')}
+            >
+              Source
+            </button>
+            <button
+              type="button"
+              className={narrowTab === 'teacher' ? 'tab active' : 'tab'}
+              onClick={() => setNarrowTab('teacher')}
+            >
+              Teacher
+            </button>
+          </div>
         </div>
       </div>
 
@@ -287,7 +392,7 @@ export function LearnPage() {
         </p>
       ) : null}
 
-      <div className="learn-split">
+      <div ref={splitRef} className="learn-split" style={splitStyle}>
         <section
           className={`learn-pane source-pane${narrowTab === 'source' ? ' show-mobile' : ''}`}
         >
@@ -336,12 +441,25 @@ export function LearnPage() {
                       ) : null}
                     </p>
                   ) : null}
-                  <pre>{block.text}</pre>
+                  <p className="source-block-text">{block.text}</p>
                 </article>
               );
             })
           )}
         </section>
+
+        <hr
+          className="learn-resizer"
+          aria-label="Resize source and teacher panes"
+          aria-orientation="vertical"
+          aria-valuemin={MIN_SOURCE_SHARE}
+          aria-valuemax={MAX_SOURCE_SHARE}
+          aria-valuenow={sourceShare}
+          tabIndex={0}
+          title="Drag to resize"
+          onPointerDown={beginSplitResize}
+          onKeyDown={handleSplitKeyDown}
+        />
 
         <section
           className={`learn-pane teacher-pane${narrowTab === 'teacher' ? ' show-mobile' : ''}`}
@@ -352,8 +470,8 @@ export function LearnPage() {
             {lines.length === 0 && !streaming && !busy ? (
               <p className="muted">Starting your lesson…</p>
             ) : null}
-            {lines.map((line, index) => (
-              <div key={`${line.role}-${index}`} className={`chat-bubble ${line.role}`}>
+            {lines.map((line) => (
+              <div key={line.id} className={`chat-bubble ${line.role}`}>
                 {line.role === 'assistant' ? (
                   <>
                     <MarkdownText
@@ -364,7 +482,7 @@ export function LearnPage() {
                     {renderReferences(line.citations)}
                   </>
                 ) : (
-                  <p style={{ whiteSpace: 'pre-wrap' }}>{line.text}</p>
+                  <UserPrompt text={line.text} />
                 )}
               </div>
             ))}
@@ -377,6 +495,7 @@ export function LearnPage() {
 
           <div className="composer stack">
             <textarea
+              ref={composerRef}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder={
@@ -407,6 +526,15 @@ export function LearnPage() {
           </div>
         </section>
       </div>
+    </div>
+  );
+}
+
+function UserPrompt({ text }: { text: string }) {
+  return (
+    <div className="user-prompt">
+      <span className="user-prompt-label">You asked</span>
+      <p>{text}</p>
     </div>
   );
 }

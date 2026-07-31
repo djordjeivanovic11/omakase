@@ -47,6 +47,9 @@ importers:
       defuddle:
         specifier: 0.19.2
         version: 0.19.2
+      katex:
+        specifier: ^0.18.1
+        version: 0.18.1
       react:
         specifier: 19.1.1
         version: 19.1.1
@@ -2691,6 +2694,10 @@ packages:
     resolution: {integrity: sha512-P0CysNDQ7rtVw4QIQtm+MRxV66vKFSvlsQvGYXZWR3qFU0jlMKHZZZgw8e+8DSah4UDKMqnknRDQz+xuQXQ/Zg==}
     engines: {node: '>= 6'}
 
+  commander@8.3.0:
+    resolution: {integrity: sha512-OkTL9umf+He2DZkUq8f8J9of7yL6RJKI24dVITBmNfZBmri9zYZQrKkuXiKhyfPSu8tUhnVBB1iKXevvnlR4Ww==}
+    engines: {node: '>= 12'}
+
   commander@9.5.0:
     resolution: {integrity: sha512-KRs7WVDKg86PWiuAqhDrAQnTXZKraVcCc6vFdL14qrZ/DcWwuRo7VoiYXalXO7S5GKpqYiVEwCbgFDfxNHKJBQ==}
     engines: {node: ^12.20.0 || >=14}
@@ -4015,6 +4022,10 @@ packages:
   kareem@3.3.0:
     resolution: {integrity: sha512-kpSuLD3/7RenBnjnJdOHXCKC8dTd1JzeOiJhN0necWWci6cC+qX+VuwPnMVgb+a4+KNJSfgqahpnfWaeDXCimw==}
     engines: {node: '>=18.0.0'}
+
+  katex@0.18.1:
+    resolution: {integrity: sha512-Td8GCYSxDAoMhHOlKmCFMJ/hz5qlAAb71n66Dryw9nfCVfumLo7nhuotbvKom/XPADmrYC3O5QR71EPq4DarJQ==}
+    hasBin: true
 
   keyv@4.5.4:
     resolution: {integrity: sha512-oxVHkHR/EJf2CNXnWxRLW6mg7JyCCUcG0DtEGmL2ctUo1PNTin1PUil+r/+4r5MpVgC/fn1kjsx7mjSujKqIpw==}
@@ -9128,6 +9139,8 @@ snapshots:
 
   commander@5.1.0: {}
 
+  commander@8.3.0: {}
+
   commander@9.5.0: {}
 
   compare-version@0.1.2: {}
@@ -10468,6 +10481,10 @@ snapshots:
       safe-buffer: 5.2.1
 
   kareem@3.3.0: {}
+
+  katex@0.18.1:
+    dependencies:
+      commander: 8.3.0
 
   keyv@4.5.4:
     dependencies:

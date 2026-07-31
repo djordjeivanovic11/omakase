@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-Milestone 8 — **Personal MVP + no-fake-runtime hardening**. Silent mock fallback fixed; production hash embeddings removed; GPT-5.6 defaults; sidebar Learn workspace. See `docs/PRODUCT_AND_AGENT_REDESIGN.md` and `docs/REALITY_AUDIT.md`.
+Milestone 8 — **Personal MVP + no-fake-runtime hardening**. Silent mock fallback fixed; production hash embeddings removed; GPT-5.6 defaults; sidebar Learn workspace with resizable source/teacher panes, rendered citations, KaTeX math, and code blocks. See `docs/PRODUCT_AND_AGENT_REDESIGN.md` and `docs/REALITY_AUDIT.md`.
 
 ## Working golden path
 
@@ -25,7 +25,7 @@ Evidence: `apps/desktop/tests/integration/mock-agent-golden.test.ts`, packaged-s
 
 | ID | Status | Command / artifact | Notes |
 |---|---|---|---|
-| ACC-BLD-001–007 | PASS | doctor, typecheck, 82 tests, package, extension builds | |
+| ACC-BLD-001–007 | PASS | doctor, typecheck, 89 tests, package, extension builds | |
 | ACC-BLD-008 | PASS | `pnpm licenses` → `docs/dependency-licenses.json` | |
 | ACC-BLD-012 | PASS | `pnpm --filter @omakase/desktop test:packaged` (7) | Clean-user video N/A for personal |
 | ACC-INS-001 | PASS (unsigned) | `pnpm make:dmg` → `out/make/Omakase-darwin-arm64.dmg` | |
@@ -79,7 +79,7 @@ pnpm build:website
 
 ## Test and build results
 
-- Unit/integration: **86 passed**
+- Unit/integration: **89 passed**
 - Packaged smoke: **7 passed**
 - Local ONNX embedding live check: **3 passed**
 - Full live OpenAI + packaged golden path: **12 passed**

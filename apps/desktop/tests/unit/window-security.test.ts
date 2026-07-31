@@ -14,6 +14,7 @@ describe('BrowserWindow security configuration', () => {
   it('defines a restrictive CSP', () => {
     const source = readFileSync(path.resolve(__dirname, '../../src/main/window.ts'), 'utf8');
     expect(source).toContain("default-src 'self'");
+    expect(source).toContain("font-src 'self' data:");
     expect(source).toContain("object-src 'none'");
     expect(source).toContain("frame-src 'none'");
   });

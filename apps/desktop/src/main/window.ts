@@ -11,7 +11,7 @@ const PRODUCTION_CSP = [
   "script-src 'self'",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob:",
-  "font-src 'self'",
+  "font-src 'self' data:",
   "connect-src 'self'",
   "media-src 'self' blob:",
   "object-src 'none'",
@@ -37,7 +37,7 @@ function developmentCsp(devServerUrl: string): string {
     `script-src 'self' 'unsafe-inline' 'unsafe-eval' ${origin}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
-    "font-src 'self'",
+    "font-src 'self' data:",
     `connect-src 'self' ${origin} ${wsOrigin} ws://localhost:* http://localhost:*`,
     "media-src 'self' blob:",
     "object-src 'none'",
@@ -130,10 +130,7 @@ export function createMainWindow(): BrowserWindow {
     void win.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
     win.webContents.openDevTools({ mode: 'detach' });
   } else {
-    const indexPath = path.join(
-      __dirname,
-      `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`,
-    );
+    const indexPath = path.join(__dirname, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`);
     if (!fs.existsSync(indexPath)) {
       log.error('Renderer bundle is missing from the packaged app', { indexPath });
     }

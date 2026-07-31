@@ -2182,7 +2182,7 @@ default-src 'self';
 script-src 'self';
 style-src 'self' 'unsafe-inline';
 img-src 'self' data: blob:;
-font-src 'self';
+font-src 'self' data:;
 connect-src 'self';
 media-src 'self' blob:;
 object-src 'none';
@@ -3099,4 +3099,3 @@ The governing engineering principle is:
 > Borrow the machinery. Own the judgment.
 
 The application should borrow reliable infrastructure for models, extraction, rendering, storage, and packaging. It must own the hard part: deciding what this person understands, what remains uncertain, what evidence supports that belief, and what they should learn next.
-
