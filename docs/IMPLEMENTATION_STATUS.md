@@ -54,7 +54,7 @@ Evidence: `apps/desktop/tests/integration/mock-agent-golden.test.ts`, packaged-s
 - pnpm `node-linker=hoisted` required by Electron Forge
 - Granite ONNX vendored under `resources/models/` (not in git if oversized — fetch via `pnpm --filter @omakase/desktop fetch:model`)
 - HashEmbeddingService is test-only; missing ONNX makes production embedding jobs fail honestly
-- Mock provider requires deterministic test mode (`OMAKASE_TEST=1` + `OMAKASE_MOCK_PROVIDER=1`) plus an explicit local-mock profile; packaged mock is limited further to `OMAKASE_SMOKE=1`
+- Mock provider requires deterministic test harness mode (`OMAKASE_TEST=1` + `OMAKASE_MOCK_PROVIDER=1` plus Vitest or packaged smoke) and an explicit local-mock profile
 - macOS DMG via `hdiutil` (`scripts/make-macos-dmg.sh`), not Forge MakerDMG
 - 5 local job workers for ingestion/embedding
 
@@ -79,7 +79,7 @@ pnpm build:website
 
 ## Test and build results
 
-- Unit/integration: **82 passed**
+- Unit/integration: **85 passed**
 - Packaged smoke: **7 passed**
 - Local ONNX embedding live check: **3 passed**
 - Full live OpenAI + packaged golden path: **12 passed**

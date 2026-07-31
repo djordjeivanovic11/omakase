@@ -14,7 +14,7 @@ import {
 export interface ProviderModelSelection {
   profile: ProviderProfile;
   modelId: string;
-  apiKey: string | null;
+  apiKey?: string | null;
 }
 
 /**
@@ -54,7 +54,11 @@ export function createLanguageModel(
   }
 
   const apiKey =
-    selection.apiKey ?? (profile.id ? secretStore.getSecret(`provider:${profile.id}`) : null);
+    selection.apiKey !== undefined
+      ? selection.apiKey
+      : profile.id
+        ? secretStore.getSecret(`provider:${profile.id}`)
+        : null;
   if (!apiKey) {
     throw new Error(`Missing API key for provider profile ${profile.id}`);
   }

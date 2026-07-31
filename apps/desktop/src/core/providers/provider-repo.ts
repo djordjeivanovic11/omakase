@@ -42,6 +42,14 @@ function mapProfile(row: Record<string, unknown>, keySuffix: string | null): Pro
   };
 }
 
+function withUnreadableSecret(row: Record<string, unknown>): Record<string, unknown> {
+  return {
+    ...row,
+    last_verification: 'failed',
+    last_error_code: 'secret_unreadable',
+  };
+}
+
 function mapModel(row: Record<string, unknown>): ProviderModel {
   const caps = ProviderCapabilitiesSchema.parse(JSON.parse(row.capabilities_json as string));
   return {
@@ -65,8 +73,12 @@ export class ProviderRepo {
       .all() as Record<string, unknown>[];
     return rows.map((row) => {
       const ref = row.secret_ref as string;
-      const key = this.secretStore.getSecret(ref);
-      return mapProfile(row, key ? maskKeySuffix(key) : null);
+      try {
+        const key = this.secretStore.getSecret(ref);
+        return mapProfile(row, key ? maskKeySuffix(key) : null);
+      } catch {
+        return mapProfile(withUnreadableSecret(row), null);
+      }
     });
   }
 
@@ -75,8 +87,12 @@ export class ProviderRepo {
       | Record<string, unknown>
       | undefined;
     if (!row) return null;
-    const key = this.secretStore.getSecret(row.secret_ref as string);
-    return mapProfile(row, key ? maskKeySuffix(key) : null);
+    try {
+      const key = this.secretStore.getSecret(row.secret_ref as string);
+      return mapProfile(row, key ? maskKeySuffix(key) : null);
+    } catch {
+      return mapProfile(withUnreadableSecret(row), null);
+    }
   }
 
   createProfile(input: CreateProviderProfileInput): ProviderProfile {
@@ -92,6 +108,39 @@ export class ProviderRepo {
           : 'OpenRouter');
 
     const defaultModelId = input.defaultModelId ?? defaultModelForProvider(input.provider);
+
+    const existing = this.db
+      .prepare(
+        `SELECT id FROM provider_profiles
+         WHERE provider = ? AND display_name = ? AND COALESCE(base_url, '') = COALESCE(?, '')
+         ORDER BY created_at ASC
+         LIMIT 1`,
+      )
+      .get(input.provider, displayName, input.baseUrl ?? null) as { id: string } | undefined;
+    if (existing) {
+      this.secretStore.setSecret(secretRefForProfile(existing.id), input.apiKey);
+      this.db
+        .prepare(
+          `UPDATE provider_profiles SET
+            default_model_id = ?,
+            enabled = 1,
+            last_verified_at = NULL,
+            last_verification = NULL,
+            last_error_code = NULL,
+            updated_at = ?
+          WHERE id = ?`,
+        )
+        .run(defaultModelId, ts, existing.id);
+      this.upsertModel(existing.id, {
+        modelId: defaultModelId,
+        displayName: defaultModelId,
+        capabilities: DEFAULT_CAPABILITIES,
+        active: true,
+      });
+      const profile = this.getProfile(existing.id);
+      if (!profile) throw new Error('Failed to update provider profile');
+      return profile;
+    }
 
     this.secretStore.setSecret(ref, input.apiKey);
 
@@ -186,7 +235,11 @@ export class ProviderRepo {
   }
 
   getApiKey(profileId: string): string | null {
-    return this.secretStore.getSecret(secretRefForProfile(profileId));
+    try {
+      return this.secretStore.getSecret(secretRefForProfile(profileId));
+    } catch {
+      return null;
+    }
   }
 
   listModels(profileId: string): ProviderModel[] {

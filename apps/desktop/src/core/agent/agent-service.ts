@@ -13,6 +13,7 @@ import { parseMockStructuredOutput } from '../providers/mock-model.js';
 import {
   defaultModelForProvider,
   isExplicitMockProfile,
+  isMockProviderRuntimeAllowed,
   openaiResponsesProviderOptions,
 } from '../providers/model-defaults.js';
 import { ProviderRepo } from '../providers/provider-repo.js';
@@ -54,17 +55,27 @@ export class AgentService {
 
   resolveDefaultProvider(): { profileId: string; modelId: string } {
     const profiles = this.providerRepo.listProfiles().filter((p) => p.enabled);
-    // Prefer a real (non-mock) profile when both exist.
-    const real = profiles.find((p) => !isExplicitMockProfile(p.displayName, p.defaultModelId));
+    // Prefer a real (non-mock) profile with a readable key when both exist.
+    const real =
+      profiles.find((p) => !isExplicitMockProfile(p.displayName, p.defaultModelId) && p.keySuffix) ??
+      profiles.find((p) => !isExplicitMockProfile(p.displayName, p.defaultModelId));
     const profile = real ?? profiles[0];
     if (!profile) {
-      throw new Error(
-        'No enabled provider profile. Connect an API key in You, or set OMAKASE_MOCK_PROVIDER=1 for tests.',
-      );
+      throw new Error('No enabled provider profile. Connect an API key in You.');
     }
     if (isExplicitMockProfile(profile.displayName, profile.defaultModelId)) {
+      if (!isMockProviderRuntimeAllowed()) {
+        throw new Error(
+          'Local mock provider is disabled outside deterministic test runs. Connect a real model provider in You, then start the lesson again.',
+        );
+      }
       const modelId = profile.defaultModelId ?? 'mock-learn-v1';
       return { profileId: profile.id, modelId };
+    }
+    if (!profile.keySuffix) {
+      throw new Error(
+        'Provider API key is missing or unreadable. Re-save the model provider key in You, then start the lesson again.',
+      );
     }
     const modelId = profile.defaultModelId ?? defaultModelForProvider(profile.provider);
     if (!profile.defaultModelId) {

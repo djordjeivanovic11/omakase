@@ -14,7 +14,7 @@ Unsigned development packages are supported today. Signed/notarized store builds
 | Item | Status | Evidence |
 |---|---|---|
 | Install verified from clean toolchain | PASS | `node ./scripts/check-env.mjs` → Node 24.18.1 / pnpm 10.14.0; `pnpm install` |
-| Tests green | PASS | `OMAKASE_TEST=1 OMAKASE_MOCK_PROVIDER=1 pnpm test` → 46 tests (4 contracts + 42 desktop) |
+| Tests green | PASS | `OMAKASE_TEST=1 OMAKASE_MOCK_PROVIDER=1 pnpm --filter @omakase/desktop test` → 85 desktop tests |
 | Typecheck | PASS | `pnpm typecheck` (contracts, desktop, extension, website) |
 | Lint (errors) | PASS | `pnpm exec biome check . --diagnostic-level=error` |
 | Packaging (app dir) | PASS | `pnpm build:desktop` → `apps/desktop/out/Omakase-darwin-arm64/Omakase.app` |

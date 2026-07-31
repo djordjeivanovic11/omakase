@@ -34,7 +34,10 @@ import { LearningEventsRepo } from '../core/learning/events.js';
 import { projectConceptStateForStudio } from '../core/learning/projector.js';
 import { getLogger } from '../core/observability/logger.js';
 import { testProviderConnection } from '../core/providers/connection-test.js';
-import { isMockProviderRuntimeAllowed } from '../core/providers/model-defaults.js';
+import {
+  isExplicitMockProfile,
+  isMockProviderRuntimeAllowed,
+} from '../core/providers/model-defaults.js';
 import { redactSecrets } from '../core/security/redact.js';
 import { FETCH_LIMITS, validateHttpUrl } from '../core/security/url-policy.js';
 import { importPdfSource } from '../core/sources/pdf-ingest.js';
@@ -297,11 +300,21 @@ export function registerIpcHandlers(ctx: AppContext): void {
       .prepare('SELECT onboarding_completed FROM learner_profile WHERE id = ?')
       .get('local-user') as { onboarding_completed: number } | undefined;
     const providers = ctx.providers.listProfiles().filter((p) => p.enabled);
+    const hasReadableProvider = providers.some(
+      (p) => !isExplicitMockProfile(p.displayName, p.defaultModelId) && Boolean(p.keySuffix),
+    );
     const studios = ctx.studios.list();
+    const sourceCount = (
+      ctx.db.db
+        .prepare("SELECT COUNT(*) AS count FROM sources WHERE deleted_at IS NULL")
+        .get() as { count: number }
+    ).count;
+    const hasExistingWork = studios.length > 0 || sourceCount > 0;
     return {
-      completed: row?.onboarding_completed === 1,
-      hasProvider: providers.length > 0,
+      completed: row?.onboarding_completed === 1 || hasExistingWork || hasReadableProvider,
+      hasProvider: hasReadableProvider,
       hasStudio: studios.length > 0,
+      hasSource: sourceCount > 0,
     };
   });
 

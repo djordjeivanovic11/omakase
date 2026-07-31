@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest';
+import { ProviderRepo } from '../../src/core/providers/provider-repo.js';
+import type { SecretStore } from '../../src/core/storage/secrets.js';
 import { createTestContext, type TestContext } from '../helpers/test-db.js';
 
 const contexts: TestContext[] = [];
@@ -44,5 +46,51 @@ describe('provider secrets isolation', () => {
     });
 
     expect(ctx.secretStore.getSecret(`provider:${profile.id}`)).toBe(secret);
+  });
+
+  it('re-saving the same provider replaces the stored key instead of duplicating setup', () => {
+    const ctx = createTestContext();
+    contexts.push(ctx);
+    const first = ctx.providerRepo.createProfile({
+      provider: 'openai',
+      apiKey: 'sk-first-key',
+      defaultModelId: 'gpt-5.6',
+    });
+    const second = ctx.providerRepo.createProfile({
+      provider: 'openai',
+      apiKey: 'sk-second-key',
+      defaultModelId: 'gpt-5.6',
+    });
+
+    expect(second.id).toBe(first.id);
+    expect(ctx.providerRepo.listProfiles().filter((p) => p.displayName === 'OpenAI')).toHaveLength(
+      1,
+    );
+    expect(ctx.secretStore.getSecret(`provider:${first.id}`)).toBe('sk-second-key');
+  });
+
+  it('does not crash provider listing when a saved key is unreadable', () => {
+    const ctx = createTestContext();
+    contexts.push(ctx);
+    const profile = ctx.providerRepo.createProfile({
+      provider: 'openai',
+      apiKey: 'sk-test-secret-for-unreadable-key',
+    });
+    const unreadableStore: SecretStore = {
+      setSecret: () => undefined,
+      getSecret: () => {
+        throw new Error('cannot decrypt');
+      },
+      deleteSecret: () => undefined,
+      hasSecret: () => true,
+    };
+
+    const repo = new ProviderRepo(ctx.db, unreadableStore);
+    const listed = repo.listProfiles().find((p) => p.id === profile.id);
+
+    expect(listed?.keySuffix).toBeNull();
+    expect(listed?.lastVerification).toBe('failed');
+    expect(listed?.lastErrorCode).toBe('secret_unreadable');
+    expect(repo.getApiKey(profile.id)).toBeNull();
   });
 });

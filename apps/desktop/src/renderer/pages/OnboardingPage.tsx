@@ -27,7 +27,7 @@ export function OnboardingPage() {
       .getOnboardingState()
       .then((state: { completed: boolean; hasProvider: boolean }) => {
         if (state.completed) navigate('/', { replace: true });
-        if (state.hasProvider) setStep('teacher');
+        if (state.hasProvider) setStep('studio');
       });
     void getApi()
       .getAppInfo()
@@ -129,6 +129,19 @@ export function OnboardingPage() {
     }
   };
 
+  const skipSetup = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await getApi().completeOnboarding();
+      navigate('/', { replace: true });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not leave setup');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 520, margin: '4rem auto' }}>
       <h1 className="page-title">Welcome to Omakase</h1>
@@ -136,6 +149,9 @@ export function OnboardingPage() {
         Learn deeply from the sources you care about. Your library and learning history stay on this
         device.
       </p>
+      <Button variant="ghost" onClick={() => void skipSetup()} disabled={busy}>
+        Skip setup
+      </Button>
 
       {step === 'connect' ? (
         <section className="stack">

@@ -34,7 +34,10 @@ function profile(displayName: string, defaultModelId: string | null): ProviderPr
 
 function withMockEnv(
   env: Partial<
-    Record<'OMAKASE_MOCK_PROVIDER' | 'OMAKASE_TEST' | 'OMAKASE_SMOKE', string | undefined>
+    Record<
+      'OMAKASE_MOCK_PROVIDER' | 'OMAKASE_TEST' | 'OMAKASE_SMOKE' | 'VITEST' | 'NODE_ENV',
+      string | undefined
+    >
   >,
   fn: () => void,
 ): void {
@@ -42,6 +45,8 @@ function withMockEnv(
     OMAKASE_MOCK_PROVIDER: process.env.OMAKASE_MOCK_PROVIDER,
     OMAKASE_TEST: process.env.OMAKASE_TEST,
     OMAKASE_SMOKE: process.env.OMAKASE_SMOKE,
+    VITEST: process.env.VITEST,
+    NODE_ENV: process.env.NODE_ENV,
   };
   for (const [key, value] of Object.entries(env)) {
     if (value === undefined) delete process.env[key];
@@ -87,7 +92,7 @@ describe('provider selection safety', () => {
     });
   });
 
-  it('allows local mock only in unpackaged deterministic test mode', () => {
+  it('allows local mock only in unpackaged deterministic test harness mode', () => {
     const mockProfile = profile('Local mock (testing)', 'mock-learn-v1');
     withMockEnv({ OMAKASE_MOCK_PROVIDER: undefined, OMAKASE_TEST: undefined }, () => {
       expect(shouldUseMockProvider(mockProfile, 'mock-learn-v1', { packaged: false })).toBe(false);
@@ -96,7 +101,16 @@ describe('provider selection safety', () => {
       expect(isMockProviderRuntimeAllowed({ packaged: false })).toBe(false);
       expect(shouldUseMockProvider(mockProfile, 'mock-learn-v1', { packaged: false })).toBe(false);
     });
-    withMockEnv({ OMAKASE_MOCK_PROVIDER: '1', OMAKASE_TEST: '1' }, () => {
+    withMockEnv({
+      OMAKASE_MOCK_PROVIDER: '1',
+      OMAKASE_TEST: '1',
+      VITEST: undefined,
+      NODE_ENV: undefined,
+    }, () => {
+      expect(isMockProviderRuntimeAllowed({ packaged: false })).toBe(false);
+      expect(shouldUseMockProvider(mockProfile, 'mock-learn-v1', { packaged: false })).toBe(false);
+    });
+    withMockEnv({ OMAKASE_MOCK_PROVIDER: '1', OMAKASE_TEST: '1', VITEST: 'true' }, () => {
       expect(isMockProviderRuntimeAllowed({ packaged: false })).toBe(true);
       expect(shouldUseMockProvider(mockProfile, 'mock-learn-v1', { packaged: false })).toBe(true);
     });

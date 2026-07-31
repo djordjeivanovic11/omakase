@@ -85,6 +85,16 @@ export function YouPage() {
     }
   };
 
+  const removeProvider = async (profileId: string) => {
+    setError(null);
+    try {
+      await getApi().deleteProvider(profileId);
+      refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not remove provider');
+    }
+  };
+
   const saveProfile = async () => {
     await getApi().updateLearnerProfile({ displayName: displayName.trim() || null });
     refresh();
@@ -130,8 +140,16 @@ export function YouPage() {
             <div>
               <strong>{p.displayName}</strong>
               {p.keySuffix ? <span className="muted"> · {p.keySuffix}</span> : null}
+              {p.lastErrorCode === 'secret_unreadable' ? (
+                <span className="muted"> · key needs re-saving</span>
+              ) : null}
             </div>
-            <span className="status-pill">{p.lastVerification ?? 'untested'}</span>
+            <div className="row">
+              <span className="status-pill">{p.lastVerification ?? 'untested'}</span>
+              <Button variant="ghost" onClick={() => void removeProvider(p.id)}>
+                Remove
+              </Button>
+            </div>
           </div>
         ))}
         <div className="form-field">

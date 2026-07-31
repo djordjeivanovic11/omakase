@@ -60,6 +60,12 @@ export function isPackagedRuntime(options?: { packaged?: boolean }): boolean {
 export function isMockProviderRuntimeAllowed(options?: { packaged?: boolean }): boolean {
   if (process.env.OMAKASE_MOCK_PROVIDER !== '1') return false;
   if (process.env.OMAKASE_TEST !== '1') return false;
+  const testHarness =
+    process.env.VITEST === 'true' ||
+    process.env.VITEST === '1' ||
+    process.env.NODE_ENV === 'test' ||
+    process.env.OMAKASE_SMOKE === '1';
+  if (!testHarness) return false;
   if (!isPackagedRuntime(options)) return true;
 
   // Packaged mock runs are only for the deterministic smoke harness. A normal
