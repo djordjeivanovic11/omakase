@@ -23,18 +23,19 @@ export interface EmbeddingService {
 export function l2Normalize(vector: Float32Array): Float32Array {
   let norm = 0;
   for (let i = 0; i < vector.length; i++) {
-    norm += vector[i]! * vector[i]!;
+    const value = vector[i] ?? 0;
+    norm += value * value;
   }
   norm = Math.sqrt(norm);
   if (norm === 0) return vector;
   const out = new Float32Array(vector.length);
   for (let i = 0; i < vector.length; i++) {
-    out[i] = vector[i]! / norm;
+    out[i] = (vector[i] ?? 0) / norm;
   }
   return out;
 }
 
-/** Deterministic 384-d embedding from text hash for tests and fallback. */
+/** Deterministic 384-d embedding from text hash for tests only. */
 export class HashEmbeddingService implements EmbeddingService {
   readonly modelId = GRANITE_EMBEDDING_MODEL_ID;
   readonly modelRevision: string = DEFAULT_EMBEDDING_REVISION;
@@ -52,16 +53,16 @@ export class HashEmbeddingService implements EmbeddingService {
     const vec = new Float32Array(this.dimensions);
     const hash = crypto.createHash('sha256').update(text, 'utf8').digest();
     for (let i = 0; i < this.dimensions; i++) {
-      vec[i] = (hash[i % hash.length]! - 128) / 128;
+      vec[i] = ((hash[i % hash.length] ?? 0) - 128) / 128;
     }
     return l2Normalize(vec);
   }
 }
 
 /**
- * Deterministic hash embeddings carry no meaning, so they are only ever a
- * test double. Anything that indexes real learner content must use
- * {@link LocalEmbeddingService}.
+ * Backward-compatible deterministic test service. It deliberately carries the
+ * Granite model id so older deterministic fixtures keep matching stored rows.
+ * Anything that indexes real learner content must use {@link LocalEmbeddingService}.
  */
 export class GraniteEmbeddingService extends HashEmbeddingService {
   override readonly modelRevision: string;
@@ -82,6 +83,19 @@ export interface LocalEmbeddingOptions {
   modelsDir: string;
   modelId?: string;
   revision?: string;
+}
+
+export interface RuntimeEmbeddingServiceOptions extends LocalEmbeddingOptions {
+  testMode?: boolean;
+}
+
+export function createRuntimeEmbeddingService(
+  options: RuntimeEmbeddingServiceOptions,
+): EmbeddingService {
+  if (options.testMode) {
+    return new HashEmbeddingService();
+  }
+  return new LocalEmbeddingService(options);
 }
 
 /**

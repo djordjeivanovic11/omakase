@@ -162,14 +162,14 @@ if (existsSync(modelManifest)) {
   ok(`embedding model manifest present (${path.relative(root, modelManifest)})`);
   try {
     const manifest = JSON.parse(readFileSync(modelManifest, 'utf8'));
-    info(
-      `model manifest id=${manifest.id ?? manifest.modelId ?? 'unknown'} (ONNX may still be hash-fallback)`,
-    );
+    info(`model manifest id=${manifest.id ?? manifest.modelId ?? 'unknown'} (local ONNX required)`);
   } catch {
     info('model manifest unreadable');
   }
 } else {
-  info('embedding model manifest not found — hash embedding fallback expected');
+  info(
+    'embedding model manifest not found — source embedding will fail until model files are fetched',
+  );
 }
 
 // --- Production build prerequisites ---

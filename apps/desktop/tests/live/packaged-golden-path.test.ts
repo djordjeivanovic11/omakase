@@ -12,11 +12,13 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
  * provider: connect a key, add sources, ask a grounded question, run a probe,
  * and recover everything after a restart.
  *
- * Requires OMAKASE_LIVE_OPENAI_KEY and a packaged app; skipped otherwise.
+ * Requires OMAKASE_LIVE_TESTS=1, OPENAI_API_KEY or OMAKASE_LIVE_OPENAI_KEY,
+ * and a packaged app; skipped otherwise.
  */
 
-const apiKey = process.env.OMAKASE_LIVE_OPENAI_KEY;
-const modelId = process.env.OMAKASE_LIVE_MODEL ?? 'gpt-4.1-mini';
+const apiKey = process.env.OMAKASE_LIVE_OPENAI_KEY ?? process.env.OPENAI_API_KEY;
+const liveTestsEnabled = process.env.OMAKASE_LIVE_TESTS === '1';
+const modelId = process.env.OMAKASE_LIVE_MODEL ?? 'gpt-5.6';
 
 const appRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const repoRoot = path.resolve(appRoot, '../..');
@@ -32,7 +34,7 @@ const transcriptFixture = path.join(repoRoot, 'fixtures/transcripts/spaced-repet
 const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'omakase-live-app-'));
 const logPath = path.join(userDataDir, 'omakase', 'logs', 'omakase.log');
 
-const enabled = Boolean(apiKey) && fs.existsSync(executablePath);
+const enabled = liveTestsEnabled && Boolean(apiKey) && fs.existsSync(executablePath);
 
 interface Session {
   child: ChildProcess;
@@ -259,7 +261,8 @@ describe.skipIf(!enabled)('packaged golden path with a real provider', () => {
     };
 
     expect(answer.final, `missing final event: ${JSON.stringify(answer.events)}`).toBeTruthy();
-    const result = answer.final!.result;
+    if (!answer.final) throw new Error(`missing final event: ${JSON.stringify(answer.events)}`);
+    const result = answer.final.result;
     expect(result.answerMarkdown.toLowerCase()).toContain('write-back');
     expect(result.citations.length).toBeGreaterThan(0);
     expect(answer.events.some((e) => e.type === 'text-delta' || e.type === 'final')).toBe(true);

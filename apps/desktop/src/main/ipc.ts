@@ -34,6 +34,7 @@ import { LearningEventsRepo } from '../core/learning/events.js';
 import { projectConceptStateForStudio } from '../core/learning/projector.js';
 import { getLogger } from '../core/observability/logger.js';
 import { testProviderConnection } from '../core/providers/connection-test.js';
+import { isMockProviderRuntimeAllowed } from '../core/providers/model-defaults.js';
 import { redactSecrets } from '../core/security/redact.js';
 import { FETCH_LIMITS, validateHttpUrl } from '../core/security/url-policy.js';
 import { importPdfSource } from '../core/sources/pdf-ingest.js';
@@ -286,7 +287,7 @@ export function registerIpcHandlers(ctx: AppContext): void {
       platform: process.platform,
       schemaOk: integrityCheck(ctx.db.db) === 'ok',
       packaged: app.isPackaged,
-      mockProviderEnabled: process.env.OMAKASE_MOCK_PROVIDER === '1' && !app.isPackaged,
+      mockProviderEnabled: isMockProviderRuntimeAllowed({ packaged: app.isPackaged }),
       devDiag: process.env.OMAKASE_DEV_DIAG === '1' || !app.isPackaged,
     };
   });
@@ -853,6 +854,10 @@ export function registerIpcHandlers(ctx: AppContext): void {
 
 /** Create mock provider profile for onboarding/tests. */
 export function ensureMockProvider(ctx: AppContext): ProviderProfile {
+  if (!isMockProviderRuntimeAllowed({ packaged: app.isPackaged })) {
+    throw new Error('Local mock provider is available only in explicit test runs.');
+  }
+
   const existing = ctx.providers
     .listProfiles()
     .find((p) => p.displayName.toLowerCase().includes('mock'));

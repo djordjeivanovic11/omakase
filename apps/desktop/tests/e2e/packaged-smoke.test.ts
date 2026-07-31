@@ -173,11 +173,25 @@ describe('packaged application', () => {
   it('completes first-run setup and navigates the whole product', async () => {
     const { page } = session;
 
-    // With OMAKASE_MOCK_PROVIDER the profile is provisioned at startup, so the
-    // first screen offers "Continue" instead of the mock connect button.
+    // Startup may already have provisioned a mock profile (OMAKASE_MOCK_PROVIDER).
+    // Onboarding then opens on teacher choice or studio creation.
     const continueButton = page.getByRole('button', { name: /^continue$/i });
     const mockButton = page.getByRole('button', { name: /local mock/i });
-    await continueButton.or(mockButton).first().click();
+    const studioName = page.getByLabel('Studio name');
+    if (await studioName.isVisible().catch(() => false)) {
+      // already on studio step
+    } else {
+      await continueButton.or(mockButton).first().click({ timeout: 15_000 });
+      // Teacher → Continue → studio, or Connect mock → studio
+      if (
+        !(await page
+          .getByLabel('Studio name')
+          .isVisible()
+          .catch(() => false))
+      ) {
+        await page.getByRole('button', { name: /^continue$/i }).click({ timeout: 10_000 });
+      }
+    }
 
     await page.getByLabel('Studio name').fill('Smoke Studio');
     await page.getByRole('button', { name: /start learning/i }).click();
@@ -185,18 +199,24 @@ describe('packaged application', () => {
     await page.getByRole('navigation', { name: 'Main' }).waitFor({ state: 'visible' });
 
     for (const link of ['Studios', 'Inbox', 'You', 'Today']) {
-      const navLink = page.getByRole('link', { name: link, exact: true });
+      const navLink = page.getByRole('navigation', { name: 'Main' }).getByRole('link', {
+        name: link,
+        exact: true,
+      });
       await navLink.click();
       await page.waitForFunction(
         (name) =>
-          Array.from(document.querySelectorAll('.nav-link.active')).some(
+          Array.from(document.querySelectorAll('.sidebar-link.active')).some(
             (el) => el.textContent?.trim() === name,
           ),
         link,
       );
     }
 
-    await page.getByRole('link', { name: 'Studios', exact: true }).click();
+    await page
+      .getByRole('navigation', { name: 'Main' })
+      .getByRole('link', { name: 'Studios', exact: true })
+      .click();
     await page.getByText('Smoke Studio').waitFor({ state: 'visible' });
   });
 

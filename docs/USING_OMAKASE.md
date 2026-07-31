@@ -11,8 +11,8 @@ nvm use          # Node 24
 corepack enable
 pnpm install
 pnpm run doctor
-OMAKASE_MOCK_PROVIDER=1 pnpm dev   # mock models, no paid key
-# or set a real key in You → Model provider
+pnpm dev
+# then set a real key in You → Model provider
 ```
 
 **Packaged app (macOS Apple Silicon)**
@@ -32,7 +32,7 @@ pnpm --filter @omakase/desktop make
 ## First session
 
 1. Complete onboarding (display name optional).
-2. Open **You → Model provider** and connect OpenAI (defaults to **Best teaching** / GPT-5.6), **or** use **Local mock (testing)** only in unpackaged `OMAKASE_MOCK_PROVIDER=1` builds.
+2. Open **You → Model provider** and connect OpenAI (defaults to **Best teaching** / GPT-5.6).
 3. Create a **Studio** with a clear objective.
 4. Add material via **Inbox** or the studio’s **Add PDFs**.
 5. Open a ready source → **Learn** (lesson starts automatically) or **Ask**.
@@ -81,7 +81,7 @@ Primary nav only: **Today | Studios | Inbox | You**.
 | Symptom | What to try |
 | --- | --- |
 | Blank window in `pnpm dev` | Use Node 24 (`nvm use`), restart Vite (`rs`), confirm renderer URL loads |
-| Provider errors | Re-save key in You; check network; try mock provider locally |
+| Provider errors | Re-save key in You; check network; confirm the selected profile is not `Local mock (testing)` |
 | Extension capture fails | Register ID in You; quit/reopen browser; keep desktop app running |
 | Source stuck processing | Open source → Retry; check Logs under the profile directory |
 

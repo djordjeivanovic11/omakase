@@ -9,9 +9,9 @@ const primary = [
 
 export function Nav() {
   return (
-    <aside className="app-sidebar" aria-label="Primary">
+    <aside className="app-sidebar">
       <div className="sidebar-brand">Omakase</div>
-      <nav className="sidebar-nav">
+      <nav className="sidebar-nav" aria-label="Main">
         {primary.map((item) => (
           <NavLink
             key={item.to}

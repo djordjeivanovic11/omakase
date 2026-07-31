@@ -3,7 +3,11 @@ import os from 'node:os';
 import path from 'node:path';
 import type Database from 'better-sqlite3';
 import { ProviderRepo } from '../../src/core/providers/provider-repo.js';
-import { EmbeddingsRepo, GraniteEmbeddingService } from '../../src/core/retrieval/embeddings.js';
+import {
+  type EmbeddingService,
+  EmbeddingsRepo,
+  GraniteEmbeddingService,
+} from '../../src/core/retrieval/embeddings.js';
 import { openDatabaseForTests } from '../../src/core/storage/database.js';
 import { sha256Hex } from '../../src/core/storage/hash.js';
 import { newId, nowMs } from '../../src/core/storage/ids.js';
@@ -19,6 +23,10 @@ export interface TestContext {
 }
 
 export function createTestContext(): TestContext {
+  const previousTestEnv = {
+    OMAKASE_MOCK_PROVIDER: process.env.OMAKASE_MOCK_PROVIDER,
+    OMAKASE_TEST: process.env.OMAKASE_TEST,
+  };
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omakase-test-'));
   const dbPath = path.join(dir, 'test.db');
   const handle = openDatabaseForTests(dbPath);
@@ -26,6 +34,7 @@ export function createTestContext(): TestContext {
   const providerRepo = new ProviderRepo(handle.db, secretStore);
 
   process.env.OMAKASE_MOCK_PROVIDER = '1';
+  process.env.OMAKASE_TEST = '1';
   const profile = providerRepo.createProfile({
     provider: 'openai',
     displayName: 'Mock',
@@ -42,7 +51,16 @@ export function createTestContext(): TestContext {
     cleanup: () => {
       handle.close();
       fs.rmSync(dir, { recursive: true, force: true });
-      delete process.env.OMAKASE_MOCK_PROVIDER;
+      if (previousTestEnv.OMAKASE_MOCK_PROVIDER === undefined) {
+        delete process.env.OMAKASE_MOCK_PROVIDER;
+      } else {
+        process.env.OMAKASE_MOCK_PROVIDER = previousTestEnv.OMAKASE_MOCK_PROVIDER;
+      }
+      if (previousTestEnv.OMAKASE_TEST === undefined) {
+        delete process.env.OMAKASE_TEST;
+      } else {
+        process.env.OMAKASE_TEST = previousTestEnv.OMAKASE_TEST;
+      }
     },
   };
 }
@@ -52,6 +70,7 @@ export async function insertTextSourceWithBlocks(
   studioId: string,
   title: string,
   paragraphs: string[],
+  embeddingService: EmbeddingService = new GraniteEmbeddingService(),
 ): Promise<{ sourceId: string; blockIds: number[] }> {
   const sourceId = newId();
   const versionId = newId();
@@ -101,8 +120,14 @@ export async function insertTextSourceWithBlocks(
     blockIds.push(Number(info.lastInsertRowid));
   });
 
-  const embeddingRepo = new EmbeddingsRepo(db, new GraniteEmbeddingService());
-  await Promise.all(paragraphs.map((text, i) => embeddingRepo.ensureEmbedding(blockIds[i]!, text)));
+  const embeddingRepo = new EmbeddingsRepo(db, embeddingService);
+  await Promise.all(
+    paragraphs.map((text, i) => {
+      const blockId = blockIds[i];
+      if (blockId === undefined) throw new Error(`Missing block id for paragraph ${i}`);
+      return embeddingRepo.ensureEmbedding(blockId, text);
+    }),
+  );
 
   return { sourceId, blockIds };
 }

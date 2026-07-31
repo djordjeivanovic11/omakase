@@ -39,12 +39,33 @@ export function defaultModelForProvider(
   }
 }
 
-/** True only for explicit mock profiles / model ids (never a silent fallback). */
-export function isExplicitMockProfile(displayName: string, modelId: string | null | undefined): boolean {
+export function isMockModelId(modelId: string | null | undefined): boolean {
+  return Boolean(modelId?.startsWith('mock-'));
+}
+
+/** True only for the explicit local test profile, never for a mock model id alone. */
+export function isExplicitMockProfile(
+  displayName: string,
+  modelId: string | null | undefined,
+): boolean {
   const name = displayName.toLowerCase();
-  if (name === 'mock' || name.includes('local mock')) return true;
-  if (modelId && modelId.startsWith('mock-')) return true;
-  return false;
+  const explicitName = name === 'mock' || name.includes('local mock');
+  return explicitName && (!modelId || isMockModelId(modelId));
+}
+
+export function isPackagedRuntime(options?: { packaged?: boolean }): boolean {
+  return options?.packaged ?? process.env.OMAKASE_PACKAGED === '1';
+}
+
+export function isMockProviderRuntimeAllowed(options?: { packaged?: boolean }): boolean {
+  if (process.env.OMAKASE_MOCK_PROVIDER !== '1') return false;
+  if (process.env.OMAKASE_TEST !== '1') return false;
+  if (!isPackagedRuntime(options)) return true;
+
+  // Packaged mock runs are only for the deterministic smoke harness. A normal
+  // packaged app, even with OMAKASE_MOCK_PROVIDER accidentally present, cannot
+  // create or route through the test provider.
+  return process.env.OMAKASE_TEST === '1' && process.env.OMAKASE_SMOKE === '1';
 }
 
 export function openaiResponsesProviderOptions(): {

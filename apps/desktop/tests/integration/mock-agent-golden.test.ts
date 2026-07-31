@@ -24,7 +24,12 @@ describe('mock agent golden path', () => {
       );
       expect(blockIds.length).toBeGreaterThan(0);
 
-      const agent = new AgentService({ db: ctx.db, secretStore: ctx.secretStore });
+      const embeddingService = new GraniteEmbeddingService();
+      const agent = new AgentService({
+        db: ctx.db,
+        secretStore: ctx.secretStore,
+        embeddingService,
+      });
       const { sessionId } = agent.startSession(
         { studioId, sourceId, mode: 'learn', objective: 'Understand gradient descent' },
         ctx.providerProfileId,
@@ -54,7 +59,7 @@ describe('mock agent golden path', () => {
       const probeMachine = new ProbeMachine(
         ctx.db,
         ctx.secretStore,
-        new GraniteEmbeddingService(),
+        embeddingService,
         ctx.providerRepo,
         new UsageService(ctx.db, ctx.providerRepo),
       );
@@ -78,16 +83,16 @@ describe('mock agent golden path', () => {
       ];
 
       let completed = false;
-      for (let i = 0; i < answers.length; i++) {
+      for (const answer of answers) {
         const { result, completed: done } = await probeMachine.submitAnswer(
           probe.probeId,
-          answers[i]!,
+          answer,
           ctx.providerProfileId,
           'mock-probe-v1',
         );
         expect(result.feedback.length).toBeGreaterThan(0);
         for (const ev of result.evidence) {
-          expect(answers[i]!.includes(ev.answerExcerpt)).toBe(true);
+          expect(answer.includes(ev.answerExcerpt)).toBe(true);
         }
         completed = done;
         if (done) break;

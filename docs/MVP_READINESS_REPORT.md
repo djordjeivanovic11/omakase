@@ -6,7 +6,7 @@
 
 ## Verdict
 
-**MVP READY FOR PERSONAL USE on macOS Apple Silicon**, with external blockers called out below (store signing, Windows, store extension IDs, vendored ONNX model optional).
+**MVP READY FOR PERSONAL USE on macOS Apple Silicon**, with external blockers called out below (store signing, Windows, store extension IDs).
 
 Deterministic CI path and live OpenAI golden path have been exercised. Packaging produces a launchable `.app` and a local `.dmg`. **2026-07-31 correction:** silent mock fallback removed; default teaching model is GPT-5.6; Learn auto-starts; sidebar + source/teacher workspace. See `docs/PRODUCT_AND_AGENT_REDESIGN.md`.
 
@@ -19,7 +19,7 @@ Deterministic CI path and live OpenAI golden path have been exercised. Packaging
 | Local extract → blocks → FTS → hybrid retrieval | Integration + live OpenAI Ask with citations |
 | Learn / Ask with fail-closed citations | Mock golden + live OpenAI |
 | Adaptive Probe + evidence → learner state | Mock golden + live packaged Probe |
-| BYOK providers + mock provider | You UI; secret store; `OMAKASE_MOCK_PROVIDER=1` |
+| BYOK providers + deterministic mock test harness | You UI; secret store; mock hidden outside explicit test mode |
 | Backup / restore | `tests/integration/backup-restore.test.ts` |
 | Packaged macOS arm64 launch | `tests/e2e/packaged-smoke.test.ts`, live packaged golden |
 | Browser extension + native host | Host install + You allowlist UI; extension build |
@@ -38,7 +38,7 @@ pnpm --filter @omakase/desktop package
 OMAKASE_TEST=1 OMAKASE_MOCK_PROVIDER=1 pnpm --filter @omakase/desktop test:packaged
 pnpm make:dmg
 # optional live (requires key in env, never commit):
-# OPENAI_API_KEY=… pnpm --filter @omakase/desktop exec vitest run --config vitest.live.config.ts
+# OMAKASE_LIVE_TESTS=1 OPENAI_API_KEY=… OMAKASE_LIVE_MODEL=gpt-5.6 pnpm --filter @omakase/desktop test:live
 ```
 
 Evidence log: `docs/ACCEPTANCE_EVIDENCE.md`.
@@ -48,7 +48,7 @@ Evidence log: `docs/ACCEPTANCE_EVIDENCE.md`.
 1. Apple Developer ID signing + notarization (ad-hoc local packages work)
 2. Windows installer + Authenticode
 3. Chrome/Edge **store** extension IDs (unpacked IDs registered via You)
-4. Bundled Granite ONNX weights (hash embeddings fallback ships)
+4. None for local embeddings when `apps/desktop/resources/models` is present; missing model files make embedding fail honestly rather than using fake vectors
 
 ## Known product caveats
 

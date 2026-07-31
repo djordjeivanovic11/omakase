@@ -26,7 +26,7 @@ Unsigned development packages are supported today. Signed/notarized store builds
 | Contributor entrypoints | PASS | `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`, issue + PR templates |
 | No secrets in tree | PASS | `.gitignore` covers `.env*`, `.secrets/`; keys never committed; report via `SECURITY.md` |
 | Version in UI | PASS | You page shows `app.getVersion()` |
-| First-run / BYOK | PASS | Onboarding accepts real API key; mock gated to unpackaged / `OMAKASE_MOCK_PROVIDER=1` |
+| First-run / BYOK | PASS | Onboarding accepts real API key; mock provider is gated to deterministic test runs |
 
 ## Commands someone should run after clone
 
@@ -35,7 +35,7 @@ corepack enable
 pnpm install
 pnpm check-env
 pnpm build:contracts
-OMAKASE_MOCK_PROVIDER=1 pnpm dev
+pnpm dev
 ```
 
 ```bash
@@ -53,7 +53,7 @@ pnpm build:website
 2. Windows Authenticode certificate  
 3. Chrome / Edge store extension IDs for native messaging allowlist  
 4. Optional: product screenshots in `docs/assets/` (placeholders documented in README)  
-5. Optional: vendored Granite ONNX model files (hash embeddings fallback works)
+5. Optional: vendored Granite ONNX model files for production embeddings
 
 ## Product promise for visitors
 

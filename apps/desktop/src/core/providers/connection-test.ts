@@ -2,8 +2,8 @@ import type { ConnectionTestResult } from '@omakase/contracts';
 import { generateText } from 'ai';
 import type Database from 'better-sqlite3';
 import type { SecretStore } from '../storage/secrets.js';
+import { defaultModelForProvider, isExplicitMockProfile, isMockModelId } from './model-defaults.js';
 import { ProviderRepo } from './provider-repo.js';
-import { defaultModelForProvider, isExplicitMockProfile } from './model-defaults.js';
 import { createLanguageModel, shouldUseMockProvider } from './registry.js';
 
 const MOCK_CAPABILITIES = {
@@ -40,16 +40,20 @@ export async function testProviderConnection(
     repo.updateProfile(profileId, { defaultModelId: resolvedModelId });
   }
 
+  if (
+    isMockModelId(resolvedModelId) &&
+    !isExplicitMockProfile(profile.displayName, resolvedModelId)
+  ) {
+    return {
+      ok: false,
+      provider: profile.provider,
+      modelId: resolvedModelId,
+      errorCode: 'mock_misconfigured',
+      errorMessage: 'Mock model ids are allowed only on the Local mock testing profile.',
+    };
+  }
+
   if (shouldUseMockProvider(profile, resolvedModelId)) {
-    if (!isExplicitMockProfile(profile.displayName, resolvedModelId)) {
-      return {
-        ok: false,
-        provider: profile.provider,
-        modelId: resolvedModelId,
-        errorCode: 'mock_misconfigured',
-        errorMessage: 'Mock provider was selected unexpectedly. Choose a real model.',
-      };
-    }
     repo.updateProfile(profileId, {
       lastVerification: 'ok',
       lastErrorCode: null,

@@ -16,9 +16,8 @@ export function OnboardingPage() {
   const [mockAllowed, setMockAllowed] = useState(false);
   const [providerKind, setProviderKind] = useState<ProviderKind>('openai');
   const [apiKey, setApiKey] = useState('');
-  const [teachingPreset, setTeachingPreset] = useState<(typeof OPENAI_TEACHING_PRESETS)[number]['id']>(
-    'best',
-  );
+  const [teachingPreset, setTeachingPreset] =
+    useState<(typeof OPENAI_TEACHING_PRESETS)[number]['id']>('best');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [verifying, setVerifying] = useState(false);
@@ -51,8 +50,7 @@ export function OnboardingPage() {
       const profile = (await getApi().createProvider({
         provider: providerKind,
         apiKey: apiKey.trim(),
-        defaultModelId:
-          providerKind === 'openai' ? (preset?.modelId ?? 'gpt-5.6') : undefined,
+        defaultModelId: providerKind === 'openai' ? (preset?.modelId ?? 'gpt-5.6') : undefined,
       })) as { id: string };
       setProfileId(profile.id);
       await getApi().testProvider(
@@ -77,7 +75,9 @@ export function OnboardingPage() {
     setBusy(true);
     setError(null);
     try {
-      const preset = OPENAI_TEACHING_PRESETS.find((p) => p.id === teachingPreset)!;
+      const preset =
+        OPENAI_TEACHING_PRESETS.find((p) => p.id === teachingPreset) ?? OPENAI_TEACHING_PRESETS[0];
+      if (!preset) throw new Error('No teaching presets are configured');
       await getApi().setDefaultModel(profileId, preset.modelId);
       setStep('studio');
     } catch (err) {

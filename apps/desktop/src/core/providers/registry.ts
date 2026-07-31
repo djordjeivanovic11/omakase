@@ -4,8 +4,12 @@ import type { ProviderKind, ProviderProfile } from '@omakase/contracts';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import type { LanguageModel } from 'ai';
 import type { SecretStore } from '../storage/secrets.js';
-import { isExplicitMockProfile } from './model-defaults.js';
-import { createOmakaseMockModel, isMockModelSelection } from './mock-model.js';
+import { createOmakaseMockModel } from './mock-model.js';
+import {
+  isExplicitMockProfile,
+  isMockModelId,
+  isMockProviderRuntimeAllowed,
+} from './model-defaults.js';
 
 export interface ProviderModelSelection {
   profile: ProviderProfile;
@@ -22,18 +26,11 @@ export function shouldUseMockProvider(
   modelId: string,
   options?: { packaged?: boolean },
 ): boolean {
-  const envMock = process.env.OMAKASE_MOCK_PROVIDER === '1';
-  const explicit = isExplicitMockProfile(profile.displayName, modelId);
-
-  if (options?.packaged ?? process.env.OMAKASE_PACKAGED === '1') {
-    // Packaged: mock only with env flag AND an explicit mock display name.
-    // Never allow a missing/wrong model id to select the mock.
-    const name = profile.displayName.toLowerCase();
-    return envMock && (name === 'mock' || name.includes('local mock'));
-  }
-
-  if (envMock) return true;
-  return explicit || isMockModelSelection(modelId);
+  return (
+    isMockProviderRuntimeAllowed(options) &&
+    isExplicitMockProfile(profile.displayName, modelId) &&
+    isMockModelId(modelId)
+  );
 }
 
 export function createLanguageModel(
@@ -48,6 +45,12 @@ export function createLanguageModel(
       modelId,
       mode: options?.mode ?? 'learn',
     });
+  }
+
+  if (isExplicitMockProfile(profile.displayName, modelId) || isMockModelId(modelId)) {
+    throw new Error(
+      'Local mock provider is disabled outside deterministic test runs. Connect a real model provider in You, then start the lesson again.',
+    );
   }
 
   const apiKey =

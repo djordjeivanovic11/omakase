@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { AgentService } from '../../src/core/agent/agent-service.js';
 import { LearningMapService } from '../../src/core/learning/learning-map.js';
@@ -8,7 +9,7 @@ import { NextActionsService } from '../../src/core/learning/next-actions.js';
 import { ProbeMachine } from '../../src/core/learning/probe-machine.js';
 import { ProviderRepo } from '../../src/core/providers/provider-repo.js';
 import { UsageService } from '../../src/core/providers/usage.js';
-import { GraniteEmbeddingService } from '../../src/core/retrieval/embeddings.js';
+import { LocalEmbeddingService } from '../../src/core/retrieval/embeddings.js';
 import { openDatabaseForTests } from '../../src/core/storage/database.js';
 import { FileSecretStore, TestSafeStorage } from '../../src/core/storage/secrets.js';
 import { createStudio, insertTextSourceWithBlocks } from '../helpers/test-db.js';
@@ -20,16 +21,25 @@ import { createStudio, insertTextSourceWithBlocks } from '../helpers/test-db.js'
  * runs when an API key is supplied deliberately.
  */
 
-const apiKey = process.env.OMAKASE_LIVE_OPENAI_KEY;
-const modelId = process.env.OMAKASE_LIVE_MODEL ?? 'gpt-4.1-mini';
+const apiKey = process.env.OMAKASE_LIVE_OPENAI_KEY ?? process.env.OPENAI_API_KEY;
+const liveTestsEnabled = process.env.OMAKASE_LIVE_TESTS === '1';
+const modelId = process.env.OMAKASE_LIVE_MODEL ?? 'gpt-5.6';
+const modelsDir = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../resources/models',
+);
 
 function createLiveContext() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'omakase-live-'));
   const handle = openDatabaseForTests(path.join(dir, 'library.sqlite'));
   const secretStore = new FileSecretStore(path.join(dir, 'secrets'), new TestSafeStorage());
   const providerRepo = new ProviderRepo(handle.db, secretStore);
+  const embeddingService = new LocalEmbeddingService({ modelsDir });
+  if (!embeddingService.isAvailable()) {
+    throw new Error(`Bundled embedding model missing from ${modelsDir}`);
+  }
 
-  // The registry treats this flag as "always mock", which would defeat the test.
+  // Live tests must never inherit deterministic-provider test mode.
   delete process.env.OMAKASE_MOCK_PROVIDER;
 
   const profile = providerRepo.createProfile({
@@ -43,6 +53,7 @@ function createLiveContext() {
     db: handle.db,
     secretStore,
     providerRepo,
+    embeddingService,
     profileId: profile.id,
     cleanup: () => {
       handle.close();
@@ -51,18 +62,28 @@ function createLiveContext() {
   };
 }
 
-describe.skipIf(!apiKey)('live OpenAI golden path', () => {
+describe.skipIf(!liveTestsEnabled || !apiKey)('live OpenAI golden path', () => {
   it('answers from the source with verifiable citations', async () => {
     const ctx = createLiveContext();
     try {
       const studioId = createStudio(ctx.db, 'Live Studio');
-      const { sourceId } = await insertTextSourceWithBlocks(ctx.db, studioId, 'Caching notes', [
-        'A write-through cache writes to the cache and the backing store at the same time, so the two never diverge.',
-        'A write-back cache defers the store write until the entry is evicted, which is faster but risks losing data on a crash.',
-        'Cache stampede happens when many clients miss the same key at once and all recompute the value.',
-      ]);
+      const { sourceId } = await insertTextSourceWithBlocks(
+        ctx.db,
+        studioId,
+        'Caching notes',
+        [
+          'A write-through cache writes to the cache and the backing store at the same time, so the two never diverge.',
+          'A write-back cache defers the store write until the entry is evicted, which is faster but risks losing data on a crash.',
+          'Cache stampede happens when many clients miss the same key at once and all recompute the value.',
+        ],
+        ctx.embeddingService,
+      );
 
-      const agent = new AgentService({ db: ctx.db, secretStore: ctx.secretStore });
+      const agent = new AgentService({
+        db: ctx.db,
+        secretStore: ctx.secretStore,
+        embeddingService: ctx.embeddingService,
+      });
       const { sessionId } = agent.startSession(
         { studioId, sourceId, mode: 'learn', objective: 'Understand cache write policies' },
         ctx.profileId,
@@ -107,15 +128,21 @@ describe.skipIf(!apiKey)('live OpenAI golden path', () => {
     const ctx = createLiveContext();
     try {
       const studioId = createStudio(ctx.db, 'Live Probe Studio');
-      const { sourceId } = await insertTextSourceWithBlocks(ctx.db, studioId, 'Caching notes', [
-        'A write-through cache writes to the cache and the backing store at the same time.',
-        'A write-back cache defers the store write until the entry is evicted.',
-      ]);
+      const { sourceId } = await insertTextSourceWithBlocks(
+        ctx.db,
+        studioId,
+        'Caching notes',
+        [
+          'A write-through cache writes to the cache and the backing store at the same time.',
+          'A write-back cache defers the store write until the entry is evicted.',
+        ],
+        ctx.embeddingService,
+      );
 
       const probeMachine = new ProbeMachine(
         ctx.db,
         ctx.secretStore,
-        new GraniteEmbeddingService(),
+        ctx.embeddingService,
         ctx.providerRepo,
         new UsageService(ctx.db, ctx.providerRepo),
       );
@@ -183,11 +210,21 @@ describe.skipIf(!apiKey)('live OpenAI golden path', () => {
     const ctx = createLiveContext();
     try {
       const studioId = createStudio(ctx.db, 'Fabrication Studio');
-      const { sourceId } = await insertTextSourceWithBlocks(ctx.db, studioId, 'Tiny note', [
-        'The only fact in this library is that the sky appears blue because of Rayleigh scattering.',
-      ]);
+      const { sourceId } = await insertTextSourceWithBlocks(
+        ctx.db,
+        studioId,
+        'Tiny note',
+        [
+          'The only fact in this library is that the sky appears blue because of Rayleigh scattering.',
+        ],
+        ctx.embeddingService,
+      );
 
-      const agent = new AgentService({ db: ctx.db, secretStore: ctx.secretStore });
+      const agent = new AgentService({
+        db: ctx.db,
+        secretStore: ctx.secretStore,
+        embeddingService: ctx.embeddingService,
+      });
       const { sessionId } = agent.startSession(
         { studioId, sourceId, mode: 'learn' },
         ctx.profileId,

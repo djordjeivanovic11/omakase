@@ -59,11 +59,13 @@ async function runClaimedJob(
 }
 
 async function runEmbedJob(ctx: AppContext, jobId: string, payloadJson: string): Promise<void> {
+  let sourceId: string | null = null;
   try {
     const payload = JSON.parse(payloadJson) as {
       sourceId: string;
       sourceVersionId: string;
     };
+    sourceId = payload.sourceId;
     const blocks = ctx.sources.listBlocks(payload.sourceVersionId);
     const total = blocks.length;
     if (total === 0) {
@@ -72,7 +74,8 @@ async function runEmbedJob(ctx: AppContext, jobId: string, payloadJson: string):
     }
 
     for (let i = 0; i < blocks.length; i++) {
-      const block = blocks[i]!;
+      const block = blocks[i];
+      if (!block) continue;
       await ctx.embeddingsRepo.ensureEmbedding(block.id, block.text);
       // Throttle status writes — every block is fine for SQLite; progress every ~8.
       if (i === 0 || i === total - 1 || (i + 1) % 8 === 0) {
@@ -85,6 +88,12 @@ async function runEmbedJob(ctx: AppContext, jobId: string, payloadJson: string):
     ctx.jobs.succeed(jobId, { embedded: total });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    if (sourceId) {
+      ctx.sources.updateSourceProcessingStatus(sourceId, 'failed', {
+        code: 'embed_failed',
+        message,
+      });
+    }
     ctx.jobs.fail(jobId, 'embed_failed', message);
   }
 }

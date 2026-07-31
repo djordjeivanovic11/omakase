@@ -4,14 +4,13 @@ import { JobQueue } from '../core/jobs/queue.js';
 import { LearningMapService } from '../core/learning/learning-map.js';
 import { NextActionsService } from '../core/learning/next-actions.js';
 import { ProbeMachine } from '../core/learning/probe-machine.js';
+import { getLogger } from '../core/observability/logger.js';
 import { ProviderRepo } from '../core/providers/provider-repo.js';
 import { UsageService } from '../core/providers/usage.js';
-import { getLogger } from '../core/observability/logger.js';
 import {
+  createRuntimeEmbeddingService,
   type EmbeddingService,
   EmbeddingsRepo,
-  HashEmbeddingService,
-  LocalEmbeddingService,
 } from '../core/retrieval/embeddings.js';
 import { SourcesRepo } from '../core/sources/sources-repo.js';
 import { AssetStore } from '../core/storage/asset-store.js';
@@ -51,16 +50,20 @@ export interface AppContext {
  * with meaningless vectors that would quietly ruin search results.
  */
 function createEmbeddingService(modelsDir: string): EmbeddingService {
-  if (process.env.OMAKASE_TEST === '1' || process.env.OMAKASE_HASH_EMBEDDINGS === '1') {
-    return new HashEmbeddingService();
+  const service = createRuntimeEmbeddingService({
+    modelsDir,
+    testMode: process.env.OMAKASE_TEST === '1',
+  });
+  if (
+    'isAvailable' in service &&
+    typeof service.isAvailable === 'function' &&
+    !service.isAvailable()
+  ) {
+    getLogger().warn('Bundled embedding model missing; embedding jobs will fail until installed', {
+      modelsDir,
+    });
   }
-
-  const local = new LocalEmbeddingService({ modelsDir });
-  if (!local.isAvailable()) {
-    getLogger().warn('Bundled embedding model missing; semantic search is disabled', { modelsDir });
-    return new HashEmbeddingService();
-  }
-  return local;
+  return service;
 }
 
 function createSafeStorage(): SafeStorageLike {

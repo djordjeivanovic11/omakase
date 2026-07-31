@@ -9,8 +9,9 @@ This file records **reproducible evidence** for the personal Apple Silicon MVP g
 nvm use 24
 pnpm run doctor                          # OK
 pnpm typecheck                           # contracts, desktop, extension, website
-OMAKASE_TEST=1 OMAKASE_MOCK_PROVIDER=1 pnpm --filter @omakase/desktop test   # 72 passed
+OMAKASE_TEST=1 OMAKASE_MOCK_PROVIDER=1 pnpm --filter @omakase/desktop test   # 82 passed
 node ./evals/runners/deterministic.mjs   # 53/53
+pnpm verify:ai                           # deterministic + Promptfoo offline + AI desktop checks
 pnpm --filter @omakase/extension build && pnpm --filter @omakase/extension build:edge
 pnpm build:website
 pnpm --filter @omakase/desktop package
@@ -18,17 +19,18 @@ OMAKASE_TEST=1 OMAKASE_MOCK_PROVIDER=1 pnpm --filter @omakase/desktop test:packa
 pnpm make:dmg                            # apps/desktop/out/make/Omakase-darwin-arm64.dmg
 ```
 
-Live OpenAI (opt-in, never commit keys):
+Live / real local AI (opt-in for provider calls, never commit keys):
 
 ```bash
-# OPENAI_API_KEY=… pnpm --filter @omakase/desktop exec vitest run --config vitest.live.config.ts
+pnpm --filter @omakase/desktop exec vitest run --config vitest.live.config.ts tests/live/local-embeddings.test.ts  # 3 passed
+OMAKASE_LIVE_TESTS=1 OPENAI_API_KEY=… OMAKASE_LIVE_MODEL=gpt-5.6 pnpm --filter @omakase/desktop test:live  # 12 passed
 ```
 
 ## Status by area
 
 | Area | Status | Evidence |
 |---|---|---|
-| A Build | PASS (local) | doctor, typecheck, 72 unit/integration, extension + website builds, package + packaged-smoke |
+| A Build | PASS (local) | doctor, typecheck, 82 unit/integration, extension + website builds, package + packaged-smoke |
 | B Install | PASS macOS arm64 unsigned; EXTERNAL signing/Windows | `.app` + `make:dmg` hdiutil DMG; ACC-INS-004/005 EXTERNAL |
 | C Electron security | PASS | `window-security`, `ipc-allowlist`, `architecture` tests |
 | D Providers / secrets | PASS mock + opt-in live | secrets-isolation, redaction, mock golden; live suite when keyed |
@@ -39,7 +41,7 @@ Live OpenAI (opt-in, never commit keys):
 | I PDF | PASS digital text | pdf-blocks / extract tests; vision fallback EXTERNAL/deferred |
 | J Extension | PASS local unpack | native host + You allowlist; store IDs EXTERNAL |
 | K Media | PASS transcripts | transcript-parse; podcasting/YouTube/audio transcription deferred |
-| L Embeddings | PASS with vendored ONNX + hash fallback | `resources/models/…/onnx/model.onnx` + manifest; ExactScanVectorIndex |
+| L Embeddings | PASS with vendored ONNX; hash only in deterministic tests | `resources/models/…/onnx/model.onnx` + manifest; `embedding-policy` + ExactScanVectorIndex |
 | M Retrieval / citations | PASS | rrf, hybrid, citations unit + mock/live golden |
 | N Agent | PASS | one agent, tools, budgets raised for local libraries, mock golden |
 | O Research web | IN PROGRESS / deferred | research-policy unit; provider-native search not required for personal MVP |

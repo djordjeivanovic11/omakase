@@ -82,7 +82,7 @@ Optional / experimental. Useful on some cross-cutting questions; noisy on others
 1. Live Context7 / GitHub / Playwright MCP not exercised with real tokens here.
 2. Promptfoo offline suites use a stub provider — they guard config/assert plumbing and committed red-team cases; deeper live red-team is opt-in.
 3. Retrieval thresholds not frozen beyond “hit / no-answer” contracts — measure before tightening.
-4. Granite ONNX still hash-fallback (product milestone, not this setup).
+4. Granite ONNX is now the production embedding path; hash embeddings are deterministic test doubles only.
 5. Use `pnpm run doctor` (bare `pnpm doctor` is pnpm’s builtin).
 
 ## Contributor experience target

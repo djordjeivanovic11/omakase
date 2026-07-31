@@ -2,18 +2,19 @@
 
 ## Problems addressed
 
-1. **Fake teacher** — packaged Learn/Probe answered with deterministic mock templates (“Based on your sources…”).
+1. **Fake teacher** — Learn/Probe could answer with deterministic mock templates (“Based on your sources…”) when a normal app run selected the local mock profile.
 2. **Prototype hierarchy** — form cards and top nav instead of a calm desktop learning workspace.
 
 ## Root cause (agent)
 
-`AgentService.resolveDefaultProvider()` fell back to `mock-learn-v1` when an OpenAI profile had no `defaultModelId`. Registry then routed to `createOmakaseMockModel`.
+`AgentService.resolveDefaultProvider()` fell back to `mock-learn-v1` when an OpenAI profile had no `defaultModelId`. Registry then routed to `createOmakaseMockModel`. A follow-up bug still allowed unpackaged normal app runs to use an explicit local-mock profile whenever `OMAKASE_MOCK_PROVIDER=1` was present.
 
 ### Fixes
 
 - Default OpenAI model: **`gpt-5.6`** (Best teaching); Balanced: **`gpt-5.6-terra`**.
 - Provider create/verify always persists `defaultModelId`.
-- Packaged builds: mock only if `OMAKASE_MOCK_PROVIDER=1` **and** profile display name is an explicit local mock.
+- Mock provider: only inside deterministic test mode (`OMAKASE_TEST=1`, `OMAKASE_MOCK_PROVIDER=1`); packaged smoke additionally requires `OMAKASE_SMOKE=1`.
+- Saved mock profiles outside test mode fail clearly instead of producing canned lessons or trying a real network call with `mock-*`.
 - OpenAI requests: Responses path via `openai(modelId)` with `providerOptions.openai` `{ store: false, reasoningEffort: 'medium', include: ['reasoning.encrypted_content'] }`.
 - Teaching prompts rewritten (PROMPT_VERSION `v2.0.0`); Learn auto-starts with “Teach me from the top.”
 - Citations: model still emits `[S1]`; UI shows human labels and strips handles from prose.
@@ -36,7 +37,7 @@
 ## Evidence
 
 - Unit: `provider-selection`, `citations-display`
-- Integration: mock golden still passes with `OMAKASE_MOCK_PROVIDER=1`
+- Integration: mock golden still passes with `OMAKASE_TEST=1 OMAKASE_MOCK_PROVIDER=1`
 - Manual: reconnect key in You → Learn → expect non-template prose and model `gpt-5.6`
 
 ## Known limitations

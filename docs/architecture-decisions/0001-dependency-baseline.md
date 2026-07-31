@@ -45,5 +45,5 @@ This record captures pinned dependency versions for Omakase at initialization ti
 ## Notes
 
 - Native modules (`better-sqlite3`, future ONNX runtime) are rebuilt by Electron Forge during packaging.
-- Granite embedding model files are not bundled yet; production code uses `GraniteEmbeddingService` with a deterministic hash fallback until model artifacts ship in `resources/models`.
+- Superseded 2026-07-31: Granite embedding model files are now bundled under `resources/models`; deterministic hash embeddings are test doubles only and are not a production fallback.
 - No LangChain, hosted vector DB, or secondary agent frameworks are permitted per spec.

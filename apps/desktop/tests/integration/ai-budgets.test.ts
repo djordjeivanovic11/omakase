@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { AgentService } from '../../src/core/agent/agent-service.js';
 import { validateCitationProposals } from '../../src/core/agent/citations.js';
 import { verifyAnswerExcerpt } from '../../src/core/learning/evidence.js';
+import { GraniteEmbeddingService } from '../../src/core/retrieval/embeddings.js';
 import { createStudio, createTestContext, insertTextSourceWithBlocks } from '../helpers/test-db.js';
 
 describe('AI budget and fail-closed contracts', () => {
@@ -26,7 +27,11 @@ describe('AI budget and fail-closed contracts', () => {
         'Momentum accumulates velocity across gradient steps.',
       ]);
       const before = ctx.db.prepare('SELECT COUNT(*) AS c FROM sources').get() as { c: number };
-      const agent = new AgentService({ db: ctx.db, secretStore: ctx.secretStore });
+      const agent = new AgentService({
+        db: ctx.db,
+        secretStore: ctx.secretStore,
+        embeddingService: new GraniteEmbeddingService(),
+      });
       const { sessionId } = agent.startSession(
         { studioId, mode: 'learn', objective: 'momentum' },
         ctx.providerProfileId,

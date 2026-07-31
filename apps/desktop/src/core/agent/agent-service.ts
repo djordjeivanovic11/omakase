@@ -9,16 +9,16 @@ import { generateText, stepCountIs, ToolLoopAgent } from 'ai';
 import type Database from 'better-sqlite3';
 import { NextActionsService } from '../learning/next-actions.js';
 import { aiSdkTelemetrySettings, recordAiTrace } from '../observability/ai-traces.js';
+import { parseMockStructuredOutput } from '../providers/mock-model.js';
 import {
   defaultModelForProvider,
   isExplicitMockProfile,
   openaiResponsesProviderOptions,
 } from '../providers/model-defaults.js';
-import { parseMockStructuredOutput } from '../providers/mock-model.js';
 import { ProviderRepo } from '../providers/provider-repo.js';
 import { createLanguageModel, shouldUseMockProvider } from '../providers/registry.js';
 import { UsageService } from '../providers/usage.js';
-import { type EmbeddingService, GraniteEmbeddingService } from '../retrieval/embeddings.js';
+import type { EmbeddingService } from '../retrieval/embeddings.js';
 import { hybridRetrieve } from '../retrieval/hybrid.js';
 import { newId, nowMs } from '../storage/ids.js';
 import type { SecretStore } from '../storage/secrets.js';
@@ -36,7 +36,7 @@ import { buildAgentTools, toolsForMode } from './tools.js';
 export interface AgentServiceDeps {
   db: Database.Database;
   secretStore: SecretStore;
-  embeddingService?: EmbeddingService;
+  embeddingService: EmbeddingService;
 }
 
 export class AgentService {
@@ -46,7 +46,7 @@ export class AgentService {
   private readonly nextActions: NextActionsService;
 
   constructor(private readonly deps: AgentServiceDeps) {
-    this.embeddingService = deps.embeddingService ?? new GraniteEmbeddingService();
+    this.embeddingService = deps.embeddingService;
     this.providerRepo = new ProviderRepo(deps.db, deps.secretStore);
     this.usage = new UsageService(deps.db, this.providerRepo);
     this.nextActions = new NextActionsService(deps.db);
@@ -310,9 +310,7 @@ export class AgentService {
         const streamResult = await agent.stream({
           prompt: `${system}\n\n${prompt}`,
           abortSignal: AbortSignal.timeout(limits.timeoutMs),
-          ...(openaiOptions
-            ? { providerOptions: { openai: openaiOptions } }
-            : {}),
+          ...(openaiOptions ? { providerOptions: { openai: openaiOptions } } : {}),
         });
 
         let toolCallCount = 0;

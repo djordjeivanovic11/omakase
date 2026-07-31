@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { app, BrowserWindow, dialog } from 'electron';
 import { getLogger, initLogger } from '../core/observability/logger.js';
+import { isMockProviderRuntimeAllowed } from '../core/providers/model-defaults.js';
 import { type AppContext, createAppContext } from './app-context.js';
 import { ensureMockProvider, registerIpcHandlers } from './ipc.js';
 import { startJobWorker, stopJobWorker } from './job-worker.js';
@@ -76,12 +77,13 @@ if (!gotLock) {
       // behind an invisible app looks exactly like a hang.
       createMainWindow();
 
-      if (process.env.OMAKASE_MOCK_PROVIDER === '1') {
-        ensureMockProvider(ctx);
-        log.info('Mock provider profile ensured (test mode)');
-      }
       if (app.isPackaged) {
         process.env.OMAKASE_PACKAGED = '1';
+      }
+
+      if (isMockProviderRuntimeAllowed({ packaged: app.isPackaged })) {
+        ensureMockProvider(ctx);
+        log.info('Mock provider profile ensured (test mode)');
       }
 
       const recovered = ctx.jobs.recoverStale();

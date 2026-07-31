@@ -15,10 +15,6 @@ export interface OmakaseMockRuntime {
   contextHandles?: Array<{ handle: string; blockId: number; excerpt: string }>;
 }
 
-export function isMockModelSelection(modelId: string): boolean {
-  return modelId.startsWith('mock-');
-}
-
 const RUNTIME_MARKER = /<!-- omakase-runtime:\s*(\{[\s\S]*?\})\s*-->/;
 const SOURCE_BLOCK_RE =
   /<<<UNTRUSTED_SOURCE handle="(S\d+)" blockId="(\d+)">>>([\s\S]*?)<<<END_SOURCE>>>/g;
@@ -39,10 +35,14 @@ export function parseContextHandles(prompt: string): OmakaseMockRuntime['context
   const handles: NonNullable<OmakaseMockRuntime['contextHandles']> = [];
   SOURCE_BLOCK_RE.lastIndex = 0;
   for (const match of prompt.matchAll(SOURCE_BLOCK_RE)) {
+    const handle = match[1];
+    const blockIdText = match[2];
+    const excerpt = match[3];
+    if (!handle || !blockIdText || !excerpt) continue;
     handles.push({
-      handle: match[1]!,
-      blockId: Number.parseInt(match[2]!, 10),
-      excerpt: match[3]!.trim().slice(0, 120),
+      handle,
+      blockId: Number.parseInt(blockIdText, 10),
+      excerpt: excerpt.trim().slice(0, 120),
     });
   }
   return handles;
@@ -96,11 +96,10 @@ function extractLastUserMessage(prompt: string): string {
 function buildLearnResponse(runtime: OmakaseMockRuntime, userQuestion: string): LearningResponse {
   const handles = runtime.contextHandles ?? [];
   const primary = handles[0];
-  const answerMarkdown =
-    handles.length > 0
-      ? `Based on your sources, here is a concise answer to "${userQuestion.slice(0, 80)}". ` +
-        `The key point is documented in [${primary!.handle}] and relates to: ${primary!.excerpt.slice(0, 80)}…`
-      : `Here is a general answer to "${userQuestion.slice(0, 80)}" without specific source citations.`;
+  const answerMarkdown = primary
+    ? `Based on your sources, here is a concise answer to "${userQuestion.slice(0, 80)}". ` +
+      `The key point is documented in [${primary.handle}] and relates to: ${primary.excerpt.slice(0, 80)}…`
+    : `Here is a general answer to "${userQuestion.slice(0, 80)}" without specific source citations.`;
 
   return LearningResponseSchema.parse({
     answerMarkdown,

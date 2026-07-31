@@ -52,7 +52,7 @@ The coding agent must:
 - implement rather than merely plan;
 - keep the repository runnable after each slice;
 - work milestone by milestone;
-- use deterministic provider mocks whenever real keys are absent;
+- use deterministic provider mocks for tests when real keys are absent;
 - maintain `docs/implementation-status.md` with reproducible evidence;
 - continue until every applicable acceptance criterion passes;
 - leave only signing, notarization, store publication, or paid credentials as accurately documented external blockers.
