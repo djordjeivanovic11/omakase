@@ -9,6 +9,11 @@ import { generateText, stepCountIs, ToolLoopAgent } from 'ai';
 import type Database from 'better-sqlite3';
 import { NextActionsService } from '../learning/next-actions.js';
 import { aiSdkTelemetrySettings, recordAiTrace } from '../observability/ai-traces.js';
+import {
+  defaultModelForProvider,
+  isExplicitMockProfile,
+  openaiResponsesProviderOptions,
+} from '../providers/model-defaults.js';
 import { parseMockStructuredOutput } from '../providers/mock-model.js';
 import { ProviderRepo } from '../providers/provider-repo.js';
 import { createLanguageModel, shouldUseMockProvider } from '../providers/registry.js';
@@ -49,11 +54,22 @@ export class AgentService {
 
   resolveDefaultProvider(): { profileId: string; modelId: string } {
     const profiles = this.providerRepo.listProfiles().filter((p) => p.enabled);
-    const profile = profiles[0];
+    // Prefer a real (non-mock) profile when both exist.
+    const real = profiles.find((p) => !isExplicitMockProfile(p.displayName, p.defaultModelId));
+    const profile = real ?? profiles[0];
     if (!profile) {
-      throw new Error('No enabled provider profile. Create one or set OMAKASE_MOCK_PROVIDER=1.');
+      throw new Error(
+        'No enabled provider profile. Connect an API key in You, or set OMAKASE_MOCK_PROVIDER=1 for tests.',
+      );
     }
-    const modelId = profile.defaultModelId ?? 'mock-learn-v1';
+    if (isExplicitMockProfile(profile.displayName, profile.defaultModelId)) {
+      const modelId = profile.defaultModelId ?? 'mock-learn-v1';
+      return { profileId: profile.id, modelId };
+    }
+    const modelId = profile.defaultModelId ?? defaultModelForProvider(profile.provider);
+    if (!profile.defaultModelId) {
+      this.providerRepo.updateProfile(profile.id, { defaultModelId: modelId });
+    }
     return { profileId: profile.id, modelId };
   }
 
@@ -240,6 +256,8 @@ export class AgentService {
     let fullText = '';
 
     const useMock = shouldUseMockProvider(profile, runtimeContext.modelId);
+    const openaiOptions =
+      !useMock && profile.provider === 'openai' ? openaiResponsesProviderOptions() : undefined;
 
     try {
       if (useMock) {
@@ -285,18 +303,39 @@ export class AgentService {
           model,
           tools,
           instructions: buildSystemInstructions(mode),
-          stopWhen: stepCountIs(limits.maxSteps),
+          stopWhen: stepCountIs(Math.min(limits.maxSteps, mode === 'research' ? 10 : 8)),
           experimental_telemetry: aiSdkTelemetrySettings('omakase.learn.stream'),
         });
 
         const streamResult = await agent.stream({
           prompt: `${system}\n\n${prompt}`,
           abortSignal: AbortSignal.timeout(limits.timeoutMs),
+          ...(openaiOptions
+            ? { providerOptions: { openai: openaiOptions } }
+            : {}),
         });
 
-        for await (const chunk of streamResult.textStream) {
-          fullText += chunk;
-          yield { type: 'text-delta', sessionId, delta: chunk };
+        let toolCallCount = 0;
+        try {
+          for await (const part of streamResult.fullStream) {
+            if (part.type === 'tool-call') toolCallCount += 1;
+            if (part.type === 'text-delta' && 'textDelta' in part) {
+              const delta = String((part as { textDelta?: string }).textDelta ?? '');
+              if (delta) {
+                fullText += delta;
+                yield { type: 'text-delta', sessionId, delta };
+              }
+            }
+          }
+        } catch {
+          // fall through to text stream if fullStream shape differs
+        }
+
+        if (!fullText) {
+          for await (const chunk of streamResult.textStream) {
+            fullText += chunk;
+            yield { type: 'text-delta', sessionId, delta: chunk };
+          }
         }
 
         if (!fullText) {
@@ -316,10 +355,14 @@ export class AgentService {
           provider: profile.provider,
           modelId: runtimeContext.modelId,
           durationMs: Date.now() - started,
-          stepCount: limits.maxSteps,
+          stepCount: toolCallCount || limits.maxSteps,
           toolNames: Object.keys(tools),
           retrievedBlockIds: contextBlocks.map((b) => b.sourceBlockId),
           stopReason: 'stream_complete',
+          toolCallCount,
+          responsesApi: profile.provider === 'openai',
+          reasoningEffort: openaiOptions?.reasoningEffort ?? null,
+          store: openaiOptions?.store ?? null,
         });
       }
     } catch (error) {

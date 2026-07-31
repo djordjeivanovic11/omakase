@@ -159,7 +159,7 @@ function buildProbeResponse(runtime: OmakaseMockRuntime, userAnswer: string): Pr
     ],
     misconceptionHypotheses: [],
     nextQuestion: {
-      prompt: `Can you distinguish the main idea of "${runtime.probeObjective ?? 'this topic'}" from a common misconception?`,
+      prompt: `You explained something about "${runtime.probeObjective ?? 'this topic'}". What would go wrong if someone treated that idea as a definition instead of a mechanism?`,
       purpose: 'Test conceptual distinction after initial explanation.',
       questionType: 'distinguish',
       rubric: {

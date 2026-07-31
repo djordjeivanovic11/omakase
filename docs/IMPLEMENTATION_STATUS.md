@@ -2,7 +2,7 @@
 
 ## Current milestone
 
-Milestone 8 — **Personal MVP complete** on macOS Apple Silicon (unsigned). See `docs/MVP_READINESS_REPORT.md` and `docs/ACCEPTANCE_EVIDENCE.md`.
+Milestone 8 — **Personal MVP + teacher/UI correction**. Silent mock fallback fixed; GPT-5.6 defaults; sidebar Learn workspace. See `docs/PRODUCT_AND_AGENT_REDESIGN.md`.
 
 ## Working golden path
 

@@ -80,6 +80,9 @@ if (!gotLock) {
         ensureMockProvider(ctx);
         log.info('Mock provider profile ensured (test mode)');
       }
+      if (app.isPackaged) {
+        process.env.OMAKASE_PACKAGED = '1';
+      }
 
       const recovered = ctx.jobs.recoverStale();
       if (recovered > 0) {

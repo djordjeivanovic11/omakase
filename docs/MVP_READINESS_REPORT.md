@@ -8,7 +8,7 @@
 
 **MVP READY FOR PERSONAL USE on macOS Apple Silicon**, with external blockers called out below (store signing, Windows, store extension IDs, vendored ONNX model optional).
 
-Deterministic CI path and live OpenAI golden path have been exercised. Packaging produces a launchable `.app` and a local `.dmg` (`apps/desktop/out/make/Omakase-darwin-arm64.dmg`). Bulk PDF/transcript multi-select + **5 concurrent local workers** prepare large libraries faster. Remaining gaps are store distribution, not core learning loops.
+Deterministic CI path and live OpenAI golden path have been exercised. Packaging produces a launchable `.app` and a local `.dmg`. **2026-07-31 correction:** silent mock fallback removed; default teaching model is GPT-5.6; Learn auto-starts; sidebar + source/teacher workspace. See `docs/PRODUCT_AND_AGENT_REDESIGN.md`.
 
 ## What works
 

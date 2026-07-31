@@ -57,12 +57,13 @@ export function InboxPage() {
       });
       setTextTitle('');
       setTextBody('');
+      return 'Saved to Inbox.';
     }, 'Saved to Inbox.');
 
   const importPdf = () =>
     run(async () => {
       const filePaths = await getApi().pickPdfFiles();
-      if (filePaths.length === 0) return;
+      if (filePaths.length === 0) return undefined;
       const results = await Promise.allSettled(
         filePaths.map((absolutePath: string) =>
           getApi().importPdfSource({
@@ -87,7 +88,7 @@ export function InboxPage() {
   const importTranscript = () =>
     run(async () => {
       const filePaths = await getApi().pickTranscriptFiles();
-      if (filePaths.length === 0) return;
+      if (filePaths.length === 0) return undefined;
       const results = await Promise.allSettled(
         filePaths.map((absolutePath: string) =>
           getApi().importTranscriptSource({
@@ -110,6 +111,7 @@ export function InboxPage() {
       if (!url.trim()) throw new Error('Paste a web page URL first.');
       await getApi().importUrlSource({ url: url.trim(), lifecycleStatus: 'inbox' });
       setUrl('');
+      return 'Page imported.';
     }, 'Page imported.');
 
   const assign = async (sourceId: string, studioId: string) => {

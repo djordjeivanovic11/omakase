@@ -32,10 +32,10 @@ pnpm --filter @omakase/desktop make
 ## First session
 
 1. Complete onboarding (display name optional).
-2. Open **You → Model provider** and save an OpenAI / Anthropic / OpenRouter key, **or** use **Local mock (testing)** when `OMAKASE_MOCK_PROVIDER=1`.
+2. Open **You → Model provider** and connect OpenAI (defaults to **Best teaching** / GPT-5.6), **or** use **Local mock (testing)** only in unpackaged `OMAKASE_MOCK_PROVIDER=1` builds.
 3. Create a **Studio** with a clear objective.
-4. Add material via **Inbox** or the studio’s **Add PDF / Add transcript**.
-5. Open a ready source → **Learn** or **Ask** (answers cite source passages).
+4. Add material via **Inbox** or the studio’s **Add PDFs**.
+5. Open a ready source → **Learn** (lesson starts automatically) or **Ask**.
 6. Run **Probe** for adaptive questions; evidence updates your Learning Map / Today next action.
 
 ## Adding sources

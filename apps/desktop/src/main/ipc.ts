@@ -286,7 +286,8 @@ export function registerIpcHandlers(ctx: AppContext): void {
       platform: process.platform,
       schemaOk: integrityCheck(ctx.db.db) === 'ok',
       packaged: app.isPackaged,
-      mockProviderEnabled: process.env.OMAKASE_MOCK_PROVIDER === '1' || !app.isPackaged,
+      mockProviderEnabled: process.env.OMAKASE_MOCK_PROVIDER === '1' && !app.isPackaged,
+      devDiag: process.env.OMAKASE_DEV_DIAG === '1' || !app.isPackaged,
     };
   });
 

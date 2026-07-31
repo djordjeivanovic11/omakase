@@ -102,7 +102,7 @@ export class ProbeMachine {
         .run(
           questionId,
           sessionId,
-          `Let's begin the probe on: ${input.objective}\n\nExplain this in your own words.`,
+          `Let's begin the probe on: ${input.objective}\n\nIn your own words, what is the central idea, and what problem does it solve?`,
           ts,
         );
 

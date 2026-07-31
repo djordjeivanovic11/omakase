@@ -10,6 +10,7 @@ export function ProbePage() {
   const location = useLocation() as { state?: { sourceId?: string; objective?: string } };
   const [probeId, setProbeId] = useState<string | null>(null);
   const [question, setQuestion] = useState<string | null>(null);
+  const [turn, setTurn] = useState(1);
   const [answer, setAnswer] = useState('');
   const [feedback, setFeedback] = useState<string | null>(null);
   const [completed, setCompleted] = useState(false);
@@ -35,6 +36,7 @@ export function ProbePage() {
       })) as { probeId: string; currentQuestion: string | null };
       setProbeId(result.probeId);
       setQuestion(result.currentQuestion);
+      setTurn(1);
     };
     void start();
   }, [resolvedStudioId, resolvedSourceId, objective]);
@@ -55,7 +57,8 @@ export function ProbePage() {
         setLearningMap(map as LearningMap);
       } else if (result.result.nextQuestion) {
         setQuestion(result.result.nextQuestion.prompt);
-        setFeedback(null);
+        setTurn((t) => t + 1);
+        // Keep brief feedback visible until they start typing next answer
       }
     } finally {
       setBusy(false);
@@ -65,18 +68,18 @@ export function ProbePage() {
   if (completed && learningMap) {
     return (
       <div>
-        <h1 className="page-title">Probe complete</h1>
-        <p className="page-lead">Here is your learning map from this session.</p>
         <LearningMapView map={learningMap} />
-        {resolvedStudioId ? (
-          <Link to={`/studios/${resolvedStudioId}`}>
-            <Button variant="primary">Back to studio</Button>
-          </Link>
-        ) : (
-          <Link to="/">
-            <Button variant="primary">Continue learning</Button>
-          </Link>
-        )}
+        <div className="row" style={{ marginTop: 'var(--space-lg)' }}>
+          {resolvedStudioId ? (
+            <Link to={`/studios/${resolvedStudioId}`}>
+              <Button variant="primary">Continue learning</Button>
+            </Link>
+          ) : (
+            <Link to="/">
+              <Button variant="primary">Continue learning</Button>
+            </Link>
+          )}
+        </div>
       </div>
     );
   }
@@ -85,42 +88,38 @@ export function ProbePage() {
     <div style={{ maxWidth: 640 }}>
       <p className="muted">
         {resolvedStudioId ? <Link to={`/studios/${resolvedStudioId}`}>Studio</Link> : null}
+        {' · '}
+        Question {turn} of about 4
       </p>
       <h1 className="page-title">Probe</h1>
-      <p className="page-lead">One question at a time — answer in your own words.</p>
 
       {question ? (
-        <section className="card stack">
-          <h2>{question}</h2>
+        <section className="stack">
+          <p style={{ fontSize: '1.15rem', lineHeight: 1.5 }}>{question}</p>
+          {feedback ? <p className="muted">{feedback}</p> : null}
           <textarea
             value={answer}
             onChange={(e) => setAnswer(e.target.value)}
-            placeholder="Your answer…"
+            placeholder="Write your answer…"
           />
-          <Button variant="primary" onClick={() => void submit()} disabled={busy || !answer.trim()}>
-            Submit answer
-          </Button>
+          <div className="row">
+            <Button
+              variant="primary"
+              onClick={() => void submit()}
+              disabled={busy || !answer.trim()}
+            >
+              Submit answer
+            </Button>
+            {resolvedStudioId ? (
+              <Link to={`/studios/${resolvedStudioId}`}>
+                <Button variant="ghost">Stop Probe</Button>
+              </Link>
+            ) : null}
+          </div>
         </section>
       ) : (
         <p className="muted">Preparing your first question…</p>
       )}
-
-      {feedback ? (
-        <section className="card" style={{ marginTop: 'var(--space-lg)' }}>
-          <h3>Feedback</h3>
-          <p style={{ whiteSpace: 'pre-wrap' }}>{feedback}</p>
-        </section>
-      ) : null}
-
-      {probeId ? (
-        <Button
-          variant="ghost"
-          style={{ marginTop: 'var(--space-md)' }}
-          onClick={() => void getApi().stopProbe(probeId)}
-        >
-          Stop probe
-        </Button>
-      ) : null}
     </div>
   );
 }

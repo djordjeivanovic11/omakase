@@ -2,27 +2,33 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { getApi } from '../api.js';
 import { Button } from '../components/Button.js';
+import { OPENAI_TEACHING_PRESETS } from '../lib/teaching-presets.js';
 
 type ProviderKind = 'openai' | 'anthropic' | 'openrouter';
+type Step = 'connect' | 'teacher' | 'studio';
 
 export function OnboardingPage() {
   const navigate = useNavigate();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState<Step>('connect');
   const [studioName, setStudioName] = useState('');
   const [objective, setObjective] = useState('');
-  const [providerReady, setProviderReady] = useState(false);
+  const [profileId, setProfileId] = useState<string | null>(null);
   const [mockAllowed, setMockAllowed] = useState(false);
   const [providerKind, setProviderKind] = useState<ProviderKind>('openai');
   const [apiKey, setApiKey] = useState('');
+  const [teachingPreset, setTeachingPreset] = useState<(typeof OPENAI_TEACHING_PRESETS)[number]['id']>(
+    'best',
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     void getApi()
       .getOnboardingState()
       .then((state: { completed: boolean; hasProvider: boolean }) => {
         if (state.completed) navigate('/', { replace: true });
-        setProviderReady(state.hasProvider);
+        if (state.hasProvider) setStep('teacher');
       });
     void getApi()
       .getAppInfo()
@@ -38,18 +44,44 @@ export function OnboardingPage() {
       return;
     }
     setBusy(true);
+    setVerifying(true);
     setError(null);
     try {
+      const preset = OPENAI_TEACHING_PRESETS.find((p) => p.id === teachingPreset);
       const profile = (await getApi().createProvider({
         provider: providerKind,
         apiKey: apiKey.trim(),
+        defaultModelId:
+          providerKind === 'openai' ? (preset?.modelId ?? 'gpt-5.6') : undefined,
       })) as { id: string };
-      await getApi().testProvider(profile.id);
+      setProfileId(profile.id);
+      await getApi().testProvider(
+        profile.id,
+        providerKind === 'openai' ? preset?.modelId : undefined,
+      );
       setApiKey('');
-      setProviderReady(true);
-      setStep(1);
+      setStep(providerKind === 'openai' ? 'teacher' : 'studio');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not verify provider');
+    } finally {
+      setBusy(false);
+      setVerifying(false);
+    }
+  };
+
+  const chooseTeacher = async () => {
+    if (!profileId) {
+      setStep('studio');
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const preset = OPENAI_TEACHING_PRESETS.find((p) => p.id === teachingPreset)!;
+      await getApi().setDefaultModel(profileId, preset.modelId);
+      setStep('studio');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Could not save model choice');
     } finally {
       setBusy(false);
     }
@@ -71,8 +103,7 @@ export function OnboardingPage() {
       }>;
       const mock = providers.find((p) => p.displayName.includes('mock'));
       if (mock) await getApi().testProvider(mock.id, 'mock-learn-v1');
-      setProviderReady(true);
-      setStep(1);
+      setStep('studio');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Mock provider failed');
     } finally {
@@ -99,25 +130,17 @@ export function OnboardingPage() {
   };
 
   return (
-    <div style={{ maxWidth: 560, margin: '0 auto' }}>
+    <div style={{ maxWidth: 520, margin: '4rem auto' }}>
       <h1 className="page-title">Welcome to Omakase</h1>
       <p className="page-lead">
-        A calm local studio for learning from your own sources — with citations, probes, and a map
-        of what you actually understand.
+        Learn deeply from the sources you care about. Your library and learning history stay on this
+        device.
       </p>
 
-      {step === 0 ? (
-        <section className="card stack">
-          <h2>What you can expect</h2>
-          <ul>
-            <li>Your sources and notes stay on this device.</li>
-            <li>Ask questions with citations back to the original material.</li>
-            <li>Short adaptive probes validate what you really know.</li>
-          </ul>
-          <h2>Connect a model</h2>
-          <p className="muted">
-            Bring your own key. Omakase talks to the provider directly — nothing is proxied.
-          </p>
+      {step === 'connect' ? (
+        <section className="stack">
+          <h2>Connect OpenAI</h2>
+          <p className="muted">Requests go directly to the provider — nothing is proxied.</p>
           <div className="form-field">
             <label htmlFor="onboard-provider">Provider</label>
             <select
@@ -141,25 +164,42 @@ export function OnboardingPage() {
               placeholder="sk-…"
             />
           </div>
-          <div className="row">
-            <Button
-              variant="primary"
-              onClick={() => void connectProvider()}
-              disabled={busy || providerReady}
-            >
-              {providerReady ? 'Provider ready' : 'Save & verify key'}
-            </Button>
-            {providerReady ? <Button onClick={() => setStep(1)}>Continue</Button> : null}
-          </div>
-          {mockAllowed && !providerReady ? (
+          <Button variant="primary" onClick={() => void connectProvider()} disabled={busy}>
+            {verifying ? 'Verifying…' : 'Connect'}
+          </Button>
+          {mockAllowed ? (
             <Button onClick={() => void connectMock()} disabled={busy}>
               Use local mock (testing)
             </Button>
           ) : null}
           {error ? <p className="error-text">{error}</p> : null}
         </section>
-      ) : (
-        <section className="card stack">
+      ) : null}
+
+      {step === 'teacher' ? (
+        <section className="stack">
+          <h2>Choose your teacher</h2>
+          {OPENAI_TEACHING_PRESETS.map((preset) => (
+            <label key={preset.id} className="list-row" style={{ cursor: 'pointer' }}>
+              <input
+                type="radio"
+                name="teaching"
+                checked={teachingPreset === preset.id}
+                onChange={() => setTeachingPreset(preset.id)}
+              />{' '}
+              <strong>{preset.label}</strong>
+              <div className="muted">{preset.detail}</div>
+            </label>
+          ))}
+          <Button variant="primary" onClick={() => void chooseTeacher()} disabled={busy}>
+            Continue
+          </Button>
+          {error ? <p className="error-text">{error}</p> : null}
+        </section>
+      ) : null}
+
+      {step === 'studio' ? (
+        <section className="stack">
           <h2>Create your first studio</h2>
           <div className="form-field">
             <label htmlFor="onboard-studio">Studio name</label>
@@ -167,7 +207,7 @@ export function OnboardingPage() {
               id="onboard-studio"
               value={studioName}
               onChange={(e) => setStudioName(e.target.value)}
-              placeholder="e.g. Linear algebra"
+              placeholder="e.g. Diffusion models"
             />
           </div>
           <div className="form-field">
@@ -187,7 +227,7 @@ export function OnboardingPage() {
           </Button>
           {error ? <p className="error-text">{error}</p> : null}
         </section>
-      )}
+      ) : null}
     </div>
   );
 }

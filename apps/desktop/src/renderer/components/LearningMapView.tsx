@@ -6,33 +6,44 @@ interface LearningMapViewProps {
 
 export function LearningMapView({ map }: LearningMapViewProps) {
   return (
-    <div className="learning-map stack">
-      <section className="card">
-        <h3>What you know well</h3>
+    <div className="learning-map">
+      <h2 className="page-title" style={{ fontSize: '1.5rem' }}>
+        Learning map
+      </h2>
+
+      <section>
+        <h3>Solid</h3>
         {map.secure.length === 0 ? (
-          <p className="muted">Nothing marked secure yet — keep learning.</p>
+          <p className="muted">Nothing is solid yet — that takes clear evidence from your answers.</p>
         ) : (
           <ul>
             {map.secure.map((c) => (
-              <li key={c.conceptId}>{c.conceptName}</li>
+              <li key={c.conceptId}>
+                ✓ {c.conceptName}
+                {c.confidence != null ? (
+                  <span className="muted"> · confidence {(c.confidence * 100).toFixed(0)}%</span>
+                ) : null}
+              </li>
             ))}
           </ul>
         )}
       </section>
-      <section className="card">
-        <h3>Still forming</h3>
+
+      <section>
+        <h3>Developing</h3>
         {map.uncertain.length === 0 ? (
-          <p className="muted">No uncertain concepts right now.</p>
+          <p className="muted">No developing concepts recorded for this probe.</p>
         ) : (
           <ul>
             {map.uncertain.map((c) => (
-              <li key={c.conceptId}>{c.conceptName}</li>
+              <li key={c.conceptId}>◐ {c.conceptName}</li>
             ))}
           </ul>
         )}
       </section>
+
       {map.misconceptions.length > 0 ? (
-        <section className="card">
+        <section>
           <h3>Watch for</h3>
           <ul>
             {map.misconceptions.map((m) => (
@@ -43,9 +54,10 @@ export function LearningMapView({ map }: LearningMapViewProps) {
           </ul>
         </section>
       ) : null}
+
       {map.nextAction ? (
-        <section className="card">
-          <h3>Suggested next step</h3>
+        <section>
+          <h3>Next</h3>
           <p>{map.nextAction.title}</p>
           <p className="muted">{map.nextAction.rationale}</p>
         </section>

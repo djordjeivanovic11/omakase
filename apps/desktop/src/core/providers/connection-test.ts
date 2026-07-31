@@ -3,6 +3,7 @@ import { generateText } from 'ai';
 import type Database from 'better-sqlite3';
 import type { SecretStore } from '../storage/secrets.js';
 import { ProviderRepo } from './provider-repo.js';
+import { defaultModelForProvider, isExplicitMockProfile } from './model-defaults.js';
 import { createLanguageModel, shouldUseMockProvider } from './registry.js';
 
 const MOCK_CAPABILITIES = {
@@ -30,11 +31,30 @@ export async function testProviderConnection(
     };
   }
 
-  const resolvedModelId = modelId ?? profile.defaultModelId ?? 'gpt-4o-mini';
+  const resolvedModelId =
+    modelId ?? profile.defaultModelId ?? defaultModelForProvider(profile.provider);
   const started = Date.now();
 
+  // Persist the model we actually tested so sessions never fall back to mock.
+  if (!profile.defaultModelId || (modelId && modelId !== profile.defaultModelId)) {
+    repo.updateProfile(profileId, { defaultModelId: resolvedModelId });
+  }
+
   if (shouldUseMockProvider(profile, resolvedModelId)) {
-    repo.updateProfile(profileId, { lastVerification: 'ok', lastErrorCode: null });
+    if (!isExplicitMockProfile(profile.displayName, resolvedModelId)) {
+      return {
+        ok: false,
+        provider: profile.provider,
+        modelId: resolvedModelId,
+        errorCode: 'mock_misconfigured',
+        errorMessage: 'Mock provider was selected unexpectedly. Choose a real model.',
+      };
+    }
+    repo.updateProfile(profileId, {
+      lastVerification: 'ok',
+      lastErrorCode: null,
+      defaultModelId: resolvedModelId,
+    });
     return {
       ok: true,
       provider: profile.provider,
@@ -67,7 +87,11 @@ export async function testProviderConnection(
       maxOutputTokens: 16,
     });
 
-    repo.updateProfile(profileId, { lastVerification: 'ok', lastErrorCode: null });
+    repo.updateProfile(profileId, {
+      lastVerification: 'ok',
+      lastErrorCode: null,
+      defaultModelId: resolvedModelId,
+    });
     return {
       ok: true,
       provider: profile.provider,

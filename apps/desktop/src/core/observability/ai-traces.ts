@@ -33,6 +33,11 @@ export interface AiTraceEvent {
   errorCode?: string;
   /** Already-redacted short message only */
   errorMessage?: string;
+  /** Safe operational flags (no secrets / content) */
+  toolCallCount?: number;
+  responsesApi?: boolean;
+  reasoningEffort?: string | null;
+  store?: boolean | null;
   ts?: number;
 }
 

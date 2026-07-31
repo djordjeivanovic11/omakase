@@ -57,10 +57,12 @@ export function YouPage() {
     if (!apiKey.trim()) return;
     setError(null);
     try {
-      await getApi().createProvider({
+      const profile = (await getApi().createProvider({
         provider: providerKind,
         apiKey: apiKey.trim(),
-      });
+        defaultModelId: providerKind === 'openai' ? 'gpt-5.6' : undefined,
+      })) as { id: string };
+      await getApi().testProvider(profile.id, providerKind === 'openai' ? 'gpt-5.6' : undefined);
       setApiKey('');
       refresh();
     } catch (err) {

@@ -9,6 +9,7 @@ export function StudiosPage() {
   const [name, setName] = useState('');
   const [objective, setObjective] = useState('');
   const [creating, setCreating] = useState(false);
+  const [open, setOpen] = useState(false);
 
   useEffect(() => {
     void getApi().listStudios().then(setStudios);
@@ -29,6 +30,7 @@ export function StudiosPage() {
       });
       setName('');
       setObjective('');
+      setOpen(false);
       refresh();
     } finally {
       setCreating(false);
@@ -37,42 +39,72 @@ export function StudiosPage() {
 
   return (
     <div>
-      <h1 className="page-title">Studios</h1>
-      <p className="page-lead">Focused spaces for what you are learning right now.</p>
-
-      <form className="card stack" onSubmit={createStudio}>
-        <h2>New studio</h2>
-        <div className="form-field">
-          <label htmlFor="studio-name">Name</label>
-          <input id="studio-name" value={name} onChange={(e) => setName(e.target.value)} required />
+      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 'var(--space-lg)' }}>
+        <div>
+          <h1 className="page-title" style={{ marginBottom: '0.35rem' }}>
+            Studios
+          </h1>
+          <p className="muted" style={{ margin: 0 }}>
+            Focused spaces for what you are learning right now.
+          </p>
         </div>
-        <div className="form-field">
-          <label htmlFor="studio-objective">What do you want to understand?</label>
-          <textarea
-            id="studio-objective"
-            value={objective}
-            onChange={(e) => setObjective(e.target.value)}
-          />
-        </div>
-        <Button variant="primary" type="submit" disabled={creating}>
-          Create studio
+        <Button variant="primary" onClick={() => setOpen(true)}>
+          + New Studio
         </Button>
-      </form>
+      </div>
 
-      <section className="stack" style={{ marginTop: 'var(--space-xl)' }}>
-        {studios.length === 0 ? (
-          <p className="muted">No studios yet.</p>
-        ) : (
-          studios.map((studio) => (
-            <article key={studio.id} className="card">
-              <h2>
+      {studios.length === 0 ? (
+        <p className="muted">No studios yet. Create one to begin.</p>
+      ) : (
+        <section>
+          {studios.map((studio) => (
+            <article key={studio.id} className="list-row">
+              <h2 style={{ marginBottom: '0.35rem', fontSize: '1.35rem' }}>
                 <Link to={`/studios/${studio.id}`}>{studio.name}</Link>
               </h2>
               {studio.primaryObjective ? <p>{studio.primaryObjective}</p> : null}
             </article>
-          ))
-        )}
-      </section>
+          ))}
+        </section>
+      )}
+
+      {open ? (
+        <div className="modal-backdrop" role="presentation" onClick={() => setOpen(false)}>
+          <form
+            className="modal-sheet stack"
+            onClick={(e) => e.stopPropagation()}
+            onSubmit={createStudio}
+          >
+            <h2>New studio</h2>
+            <div className="form-field">
+              <label htmlFor="studio-name">Name</label>
+              <input
+                id="studio-name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+            <div className="form-field">
+              <label htmlFor="studio-objective">What do you want to understand?</label>
+              <textarea
+                id="studio-objective"
+                value={objective}
+                onChange={(e) => setObjective(e.target.value)}
+              />
+            </div>
+            <div className="row">
+              <Button variant="primary" type="submit" disabled={creating}>
+                Create
+              </Button>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </div>
+      ) : null}
     </div>
   );
 }

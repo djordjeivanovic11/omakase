@@ -6,6 +6,7 @@ import type {
 } from '@omakase/contracts';
 import { ProviderCapabilitiesSchema } from '@omakase/contracts';
 import type Database from 'better-sqlite3';
+import { defaultModelForProvider } from './model-defaults.js';
 import { newId, nowMs } from '../storage/ids.js';
 import type { SecretStore } from '../storage/secrets.js';
 import { maskKeySuffix } from '../storage/secrets.js';
@@ -90,6 +91,8 @@ export class ProviderRepo {
           ? 'Anthropic'
           : 'OpenRouter');
 
+    const defaultModelId = input.defaultModelId ?? defaultModelForProvider(input.provider);
+
     this.secretStore.setSecret(ref, input.apiKey);
 
     this.db
@@ -104,21 +107,19 @@ export class ProviderRepo {
         input.provider,
         displayName,
         input.baseUrl ?? null,
-        input.defaultModelId ?? null,
+        defaultModelId,
         ref,
         JSON.stringify(DEFAULT_CAPABILITIES),
         ts,
         ts,
       );
 
-    if (input.defaultModelId) {
-      this.upsertModel(id, {
-        modelId: input.defaultModelId,
-        displayName: input.defaultModelId,
-        capabilities: DEFAULT_CAPABILITIES,
-        active: true,
-      });
-    }
+    this.upsertModel(id, {
+      modelId: defaultModelId,
+      displayName: defaultModelId,
+      capabilities: DEFAULT_CAPABILITIES,
+      active: true,
+    });
 
     const profile = this.getProfile(id);
     if (!profile) throw new Error('Failed to create provider profile');
