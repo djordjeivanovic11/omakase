@@ -16,7 +16,7 @@
     "@omakase/contracts": "workspace:*",
     "defuddle": "0.19.2",
     "uuidv7": "1.2.1",
-    "zod": "3.25.76"
+    "zod": "4.4.3"
   },
   "devDependencies": {
     "typescript": "5.8.3",
