@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatCitationLabel,
+  referenceLabel,
   stripCitationHandles,
 } from '../../src/renderer/lib/citations-display.js';
 
@@ -21,5 +22,11 @@ describe('citation display', () => {
     expect(stripCitationHandles(text)).toBe(
       'The score is the gradient of log density. That matters for sampling.',
     );
+  });
+
+  it('renders source handles as compact reference numbers', () => {
+    expect(referenceLabel('S1')).toBe('1');
+    expect(referenceLabel('S12')).toBe('12');
+    expect(referenceLabel('Appendix')).toBe('Appendix');
   });
 });

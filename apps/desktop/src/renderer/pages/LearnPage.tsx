@@ -1,10 +1,10 @@
 import type { AgentStreamEvent, Source, SourceBlock } from '@omakase/contracts';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { getApi } from '../api.js';
 import { Button } from '../components/Button.js';
-import { CitationChip } from '../components/CitationChip.js';
-import { formatCitationLabel, stripCitationHandles } from '../lib/citations-display.js';
+import { MarkdownText } from '../components/MarkdownText.js';
+import { formatCitationLabel, referenceLabel } from '../lib/citations-display.js';
 
 interface ChatLine {
   role: 'user' | 'assistant';
@@ -34,6 +34,7 @@ export function LearnPage() {
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [activeBlockId, setActiveBlockId] = useState<number | null>(null);
+  const [activeReferenceHandle, setActiveReferenceHandle] = useState<string | null>(null);
   const [narrowTab, setNarrowTab] = useState<'source' | 'teacher'>('teacher');
   const [diag, setDiag] = useState<{
     modelId?: string;
@@ -49,6 +50,21 @@ export function LearnPage() {
   const mode = searchParams.get('mode') === 'ask' ? 'research' : 'learn';
   const title = mode === 'research' ? 'Ask' : 'Learn';
   const [showDiag, setShowDiag] = useState(false);
+  const visibleCitations = useMemo(
+    () =>
+      lines.flatMap((line) => (line.role === 'assistant' ? (line.citations ?? []) : [])),
+    [lines],
+  );
+  const citedHandlesByBlock = useMemo(() => {
+    const grouped = new Map<number, string[]>();
+    for (const citation of visibleCitations) {
+      if (!citation.sourceBlockId) continue;
+      const handles = grouped.get(citation.sourceBlockId) ?? [];
+      handles.push(citation.handle);
+      grouped.set(citation.sourceBlockId, handles);
+    }
+    return grouped;
+  }, [visibleCitations]);
 
   useEffect(() => {
     void getApi()
@@ -137,14 +153,17 @@ export function LearnPage() {
             timeEndMs: block?.timeEndMs,
           }),
         });
-        if (event.sourceBlockId) setActiveBlockId(event.sourceBlockId);
+        if (event.sourceBlockId) {
+          setActiveBlockId(event.sourceBlockId);
+          setActiveReferenceHandle(event.handle);
+        }
       }
       if (event.type === 'final') {
         setLines((prev) => [
           ...prev,
           {
             role: 'assistant',
-            text: stripCitationHandles(event.result.answerMarkdown),
+            text: event.result.answerMarkdown,
             citations: [...citationsRef.current],
           },
         ]);
@@ -184,6 +203,46 @@ export function LearnPage() {
     assistantBuffer.current = '';
     citationsRef.current = [];
     await getApi().sendAgentMessage({ sessionId, message: text });
+  };
+
+  const jumpToCitation = (citation: {
+    handle: string;
+    sourceBlockId?: number;
+  }) => {
+    if (!citation.sourceBlockId) return;
+    setActiveBlockId(citation.sourceBlockId);
+    setActiveReferenceHandle(citation.handle);
+    setNarrowTab('source');
+  };
+
+  const renderReferences = (
+    citations: NonNullable<ChatLine['citations']> | undefined,
+  ) => {
+    if (!citations || citations.length === 0) return null;
+    return (
+      <div className="reference-list" aria-label={`${citations.length} references`}>
+        <div className="reference-list-title">References ({citations.length})</div>
+        <div className="reference-list-items">
+          {citations.map((citation) => (
+            <button
+              key={citation.handle}
+              type="button"
+              className={
+                activeReferenceHandle === citation.handle
+                  ? 'reference-item active'
+                  : 'reference-item'
+              }
+              onClick={() => jumpToCitation(citation)}
+              disabled={!citation.sourceBlockId}
+              title={citation.claimSummary}
+            >
+              <span className="reference-number">{referenceLabel(citation.handle)}</span>
+              <span>{citation.label ?? citation.claimSummary}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -236,21 +295,51 @@ export function LearnPage() {
           {blocks.length === 0 ? (
             <p className="muted">Content is still being prepared.</p>
           ) : (
-            blocks.map((block) => (
-              <article
-                key={block.id}
-                id={`learn-block-${block.id}`}
-                className={`source-block${activeBlockId === block.id ? ' source-block-highlight' : ''}`}
-              >
-                {block.headingPathText || block.pageStart != null ? (
-                  <p className="muted" style={{ fontSize: '0.85rem' }}>
-                    {block.headingPathText}
-                    {block.pageStart != null ? ` · p.${block.pageStart}` : ''}
-                  </p>
-                ) : null}
-                <pre>{block.text}</pre>
-              </article>
-            ))
+            blocks.map((block) => {
+              const blockHandles = citedHandlesByBlock.get(block.id) ?? [];
+              const cited = blockHandles.length > 0;
+              const active = activeBlockId === block.id;
+              return (
+                <article
+                  key={block.id}
+                  id={`learn-block-${block.id}`}
+                  className={`source-block${cited ? ' source-block-cited' : ''}${
+                    active ? ' source-block-highlight' : ''
+                  }`}
+                >
+                  {block.headingPathText || block.pageStart != null || cited ? (
+                    <p className="source-block-meta">
+                      <span>
+                        {block.headingPathText}
+                        {block.pageStart != null ? ` · p. ${block.pageStart}` : ''}
+                      </span>
+                      {cited ? (
+                        <span className="source-ref-badges">
+                          {blockHandles.map((handle) => (
+                            <button
+                              key={handle}
+                              type="button"
+                              className={
+                                activeReferenceHandle === handle
+                                  ? 'source-ref-badge active'
+                                  : 'source-ref-badge'
+                              }
+                              onClick={() => {
+                                setActiveBlockId(block.id);
+                                setActiveReferenceHandle(handle);
+                              }}
+                            >
+                              {referenceLabel(handle)}
+                            </button>
+                          ))}
+                        </span>
+                      ) : null}
+                    </p>
+                  ) : null}
+                  <pre>{block.text}</pre>
+                </article>
+              );
+            })
           )}
         </section>
 
@@ -265,28 +354,23 @@ export function LearnPage() {
             ) : null}
             {lines.map((line, index) => (
               <div key={`${line.role}-${index}`} className={`chat-bubble ${line.role}`}>
-                <p style={{ whiteSpace: 'pre-wrap' }}>{line.text}</p>
-                {line.citations?.map((c) => (
-                  <CitationChip
-                    key={c.handle}
-                    handle={c.handle}
-                    label={c.label}
-                    summary={c.claimSummary}
-                    sourceId={sourceId}
-                    blockId={c.sourceBlockId}
-                    onNavigate={(_sid, blockId) => {
-                      if (blockId) {
-                        setActiveBlockId(blockId);
-                        setNarrowTab('source');
-                      }
-                    }}
-                  />
-                ))}
+                {line.role === 'assistant' ? (
+                  <>
+                    <MarkdownText
+                      markdown={line.text}
+                      citations={line.citations}
+                      onReferenceClick={jumpToCitation}
+                    />
+                    {renderReferences(line.citations)}
+                  </>
+                ) : (
+                  <p style={{ whiteSpace: 'pre-wrap' }}>{line.text}</p>
+                )}
               </div>
             ))}
             {streaming ? (
               <div className="chat-bubble assistant">
-                <p style={{ whiteSpace: 'pre-wrap' }}>{stripCitationHandles(streaming)}</p>
+                <MarkdownText markdown={streaming} citations={citationsRef.current} />
               </div>
             ) : null}
           </div>

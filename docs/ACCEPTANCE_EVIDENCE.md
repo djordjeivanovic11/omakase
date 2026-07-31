@@ -9,7 +9,7 @@ This file records **reproducible evidence** for the personal Apple Silicon MVP g
 nvm use 24
 pnpm run doctor                          # OK
 pnpm typecheck                           # contracts, desktop, extension, website
-OMAKASE_TEST=1 OMAKASE_MOCK_PROVIDER=1 pnpm --filter @omakase/desktop test   # 85 passed
+OMAKASE_TEST=1 OMAKASE_MOCK_PROVIDER=1 pnpm --filter @omakase/desktop test   # 86 passed
 node ./evals/runners/deterministic.mjs   # 53/53
 pnpm verify:ai                           # deterministic + Promptfoo offline + AI desktop checks
 pnpm --filter @omakase/extension build && pnpm --filter @omakase/extension build:edge
@@ -30,7 +30,7 @@ OMAKASE_LIVE_TESTS=1 OPENAI_API_KEY=… OMAKASE_LIVE_MODEL=gpt-5.6 pnpm --filter
 
 | Area | Status | Evidence |
 |---|---|---|
-| A Build | PASS (local) | doctor, typecheck, 85 unit/integration, extension + website builds, package + packaged-smoke |
+| A Build | PASS (local) | doctor, typecheck, 86 unit/integration, extension + website builds, package + packaged-smoke |
 | B Install | PASS macOS arm64 unsigned; EXTERNAL signing/Windows | `.app` + `make:dmg` hdiutil DMG; ACC-INS-004/005 EXTERNAL |
 | C Electron security | PASS | `window-security`, `ipc-allowlist`, `architecture` tests |
 | D Providers / secrets | PASS real BYOK + test-only mock | secrets-isolation, unreadable-secret recovery, provider-selection guard, mock golden; live suite when keyed |

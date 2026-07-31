@@ -79,7 +79,7 @@ pnpm build:website
 
 ## Test and build results
 
-- Unit/integration: **85 passed**
+- Unit/integration: **86 passed**
 - Packaged smoke: **7 passed**
 - Local ONNX embedding live check: **3 passed**
 - Full live OpenAI + packaged golden path: **12 passed**

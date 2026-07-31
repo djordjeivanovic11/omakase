@@ -42,6 +42,17 @@ export function stripCitationHandles(markdown: string): string {
   return markdown.replace(/\s*\[S\d+\]/g, '').replace(/[ \t]+\n/g, '\n').trim();
 }
 
+export function citationOrdinal(handle: string): number | null {
+  const match = /^S(\d+)$/.exec(handle);
+  if (!match) return null;
+  return Number(match[1]);
+}
+
+export function referenceLabel(handle: string): string {
+  const ordinal = citationOrdinal(handle);
+  return ordinal == null ? handle : String(ordinal);
+}
+
 function shortTitle(title: string): string {
   if (title.length <= 48) return title;
   return `${title.slice(0, 45).trimEnd()}…`;
