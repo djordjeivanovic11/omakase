@@ -1,0 +1,25 @@
+{
+  "name": "@omakase/extension",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Omakase browser capture extension for Chrome and Edge",
+  "type": "module",
+  "scripts": {
+    "prepare": "wxt prepare",
+    "dev": "wxt",
+    "build": "wxt build",
+    "build:edge": "wxt build -b edge",
+    "build:all": "wxt build && wxt build -b edge",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@omakase/contracts": "workspace:*",
+    "defuddle": "0.19.2",
+    "uuidv7": "1.2.1",
+    "zod": "3.25.76"
+  },
+  "devDependencies": {
+    "typescript": "5.8.3",
+    "wxt": "0.21.2"
+  }
+}

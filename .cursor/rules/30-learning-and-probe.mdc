@@ -1,0 +1,21 @@
+---
+description: Probe, mastery, and learner-evidence semantics
+globs:
+  - apps/desktop/src/core/learning/**/*
+  - apps/desktop/tests/**/probe*
+  - apps/desktop/tests/**/evidence*
+  - apps/desktop/tests/**/projector*
+  - evals/datasets/probe*
+  - evals/datasets/mastery*
+  - evals/datasets/learner*
+---
+
+# Learning and Probe
+
+- Probe asks one open-ended question at a time, each with a learning purpose.
+- Later questions adapt to prior answers.
+- Reading establishes only `encountered`. Higher mastery needs evidence from explanation, application, comparison, diagnosis, prediction, or critique.
+- Stored evidence must point to an exact learner answer; the app validates quoted excerpts.
+- Cross-Studio memory shares distilled evidence-backed knowledge, not full conversations.
+- Learner state must be inspectable, correctable, and retractable.
+- A learning interaction ends with a meaningful next action.

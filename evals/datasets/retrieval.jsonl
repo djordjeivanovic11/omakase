@@ -1,0 +1,8 @@
+{"id":"ret-exact-term","query":"gradient descent","rankedBlockIds":[1,2,3],"relevantBlockIds":[1],"k":5,"expect":"hit"}
+{"id":"ret-semantic","query":"how do we update weights to reduce error","rankedBlockIds":[1,3,2],"relevantBlockIds":[1],"k":5,"expect":"hit"}
+{"id":"ret-cross-source","query":"compare learning rate and regularization","rankedBlockIds":[2,3,1],"relevantBlockIds":[2,3],"k":5,"expect":"hit"}
+{"id":"ret-misleading","query":"gradient boosting trees","rankedBlockIds":[4,1],"relevantBlockIds":[4],"k":5,"expect":"hit"}
+{"id":"ret-mixed-language","query":"descenso de gradiente","rankedBlockIds":[1,2],"relevantBlockIds":[1],"k":5,"expect":"hit"}
+{"id":"ret-transcript-ts","query":"what was said at 00:12:04","rankedBlockIds":[10],"relevantBlockIds":[10],"k":5,"expect":"hit"}
+{"id":"ret-pdf-page","query":"equation on page 3","rankedBlockIds":[7,8],"relevantBlockIds":[7],"k":5,"expect":"hit"}
+{"id":"ret-no-answer","query":"quantum entanglement in this cookbook","rankedBlockIds":[],"relevantBlockIds":[],"k":5,"expect":"no_answer"}

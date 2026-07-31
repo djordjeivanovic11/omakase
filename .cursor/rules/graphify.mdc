@@ -1,0 +1,21 @@
+---
+description: Optional Graphify repository graph — use after major architecture changes
+alwaysApply: false
+globs:
+  - graphify-out/**/*
+  - docs/development/GRAPHIFY.md
+---
+
+# Graphify (optional)
+
+Graphify is an **optional** repository-intelligence tool. It is not required for ordinary coding sessions.
+
+Prefer ordinary repository search, TypeScript language services, and `docs/` first.
+
+When `graphify-out/graph.json` exists, you may use:
+
+- `graphify query "<question>"`
+- `graphify path "A" "B"`
+- `graphify explain "<concept>"`
+
+Do not block work when Graphify is missing. Do not treat generated graphs as architectural truth. See `docs/development/GRAPHIFY.md`.

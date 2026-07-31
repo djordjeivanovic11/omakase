@@ -1,0 +1,5 @@
+{"id":"ev-verbatim-ok","learnerAnswer":"Gradient descent minimizes loss by updating parameters in the direction of the negative gradient.","evidenceExcerpt":"updating parameters in the direction of the negative gradient","expect":"accept"}
+{"id":"ev-not-in-answer","learnerAnswer":"I used momentum.","evidenceExcerpt":"updating parameters in the direction of the negative gradient","expect":"reject"}
+{"id":"ev-from-source-only","learnerAnswer":"I read the PDF.","evidenceExcerpt":"Gradient descent minimizes loss","excerptFromSourceOnly":true,"expect":"reject"}
+{"id":"ev-from-agent","learnerAnswer":"ok","evidenceExcerpt":"Great explanation of learning rate","excerptFromAgentFeedback":true,"expect":"reject"}
+{"id":"ev-reading-only-explain","learnerAnswer":"I opened the section.","evidenceExcerpt":"I opened the section.","readingOnlyClaimsExplain":true,"expect":"reject"}

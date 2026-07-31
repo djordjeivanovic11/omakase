@@ -1,0 +1,16 @@
+---
+description: Omakase product invariants for all coding work
+alwaysApply: true
+---
+
+# Omakase product
+
+Omakase is a personal learning studio, not a generic chatbot or agent platform.
+
+- The principal user action is **Continue learning**.
+- Do not add dashboards, configuration surfaces, agent builders, feeds, or infrastructure terminology without explicit product justification.
+- Prefer removing complexity over exposing it.
+- Local-first and no mandatory account remain non-negotiable.
+- Do not create new top-level navigation without strong justification.
+- Primary navigation stays: Today | Studios | Inbox | You.
+- Authority: `docs/TECHNICAL_SPEC.md`, then `docs/AGENTS.md`, then ADRs.

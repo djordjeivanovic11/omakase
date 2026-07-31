@@ -1,0 +1,73 @@
+{
+  "name": "omakase",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first personalized learning studio",
+  "license": "MIT",
+  "packageManager": "pnpm@10.14.0",
+  "engines": {
+    "node": ">=24.0.0",
+    "pnpm": ">=10.14.0"
+  },
+  "scripts": {
+    "check-env": "node ./scripts/check-env.mjs",
+    "doctor": "node ./scripts/doctor.mjs",
+    "build": "pnpm build:contracts && pnpm build:extension && pnpm --filter @omakase/desktop package",
+    "build:contracts": "pnpm --filter @omakase/contracts build",
+    "build:desktop": "pnpm --filter @omakase/desktop package",
+    "build:extension": "pnpm --filter @omakase/extension build",
+    "build:website": "pnpm --filter @omakase/website build",
+    "package": "pnpm build:contracts && pnpm --filter @omakase/desktop package",
+    "make": "pnpm build:contracts && pnpm --filter @omakase/desktop make",
+    "make:dmg": "bash ./scripts/make-macos-dmg.sh",
+    "dev": "pnpm --filter @omakase/desktop start",
+    "dev:extension": "pnpm --filter @omakase/extension dev",
+    "dev:website": "pnpm --filter @omakase/website dev",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "format:check": "biome check --formatter-enabled=true --linter-enabled=false --assist-enabled=false .",
+    "test": "pnpm -r --filter @omakase/contracts test && pnpm --filter @omakase/desktop test",
+    "test:unit": "pnpm --filter @omakase/desktop test:unit",
+    "test:integration": "pnpm --filter @omakase/desktop test:integration",
+    "test:e2e": "pnpm --filter @omakase/desktop test:packaged",
+    "eval": "pnpm eval:deterministic && pnpm eval:promptfoo",
+    "eval:deterministic": "node ./evals/runners/deterministic.mjs",
+    "eval:promptfoo": "promptfoo eval -c evals/promptfoo/promptfooconfig.yaml --no-cache",
+    "eval:redteam": "promptfoo eval -c evals/promptfoo/redteam.yaml --no-cache",
+    "eval:live": "node ./evals/runners/live.mjs",
+    "eval:report": "node ./evals/runners/report.mjs",
+    "graph:build": "node ./scripts/graphify.mjs build",
+    "graph:report": "node ./scripts/graphify.mjs report",
+    "graph:clean": "node ./scripts/graphify.mjs clean",
+    "traces:inspect": "node ./scripts/traces.mjs inspect",
+    "traces:clear": "node ./scripts/traces.mjs clear",
+    "verify": "node ./scripts/verify.mjs default",
+    "verify:release": "node ./scripts/verify.mjs release",
+    "verify:ai": "node ./scripts/verify.mjs ai",
+    "licenses": "pnpm licenses list --json > docs/dependency-licenses.json",
+    "release": "bash ./scripts/release.sh",
+    "release:publish": "bash ./scripts/release.sh --publish",
+    "scan:stubs": "rg -n \"TODO|FIXME|not implemented|throw new Error\\(['\\\"]not implemented\" --glob '!docs/**' --glob '!node_modules/**' --glob '!**/dist/**' --glob '!**/.vite/**' --glob '!website/**' || true"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.1.3",
+    "@types/node": "24.2.0",
+    "promptfoo": "0.118.0",
+    "typescript": "5.8.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "electron",
+      "electron-winstaller",
+      "esbuild",
+      "fs-xattr",
+      "macos-alias",
+      "onnxruntime-node",
+      "protobufjs",
+      "sharp"
+    ]
+  }
+}

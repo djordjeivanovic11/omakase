@@ -1,0 +1,19 @@
+---
+description: AI SDK 7 runtime rules for Omakase agent code
+globs:
+  - apps/desktop/src/core/agent/**/*
+  - apps/desktop/src/core/providers/**/*
+  - packages/contracts/src/agent.ts
+  - packages/contracts/src/learning.ts
+  - packages/contracts/src/providers.ts
+---
+
+# AI SDK 7
+
+- Use the pinned AI SDK 7 APIs in this repo (`ai@7.x`). Consult version-specific docs (Context7 / official) before relying on remembered APIs.
+- One agent runtime only — do not introduce LangChain, LangGraph, Mastra, CrewAI, or a second framework.
+- Use typed runtime context and typed tools; tool sets are explicitly allowlisted by mode.
+- Set hard step, duration, tool-call, context, and cost limits (`budgets.ts`).
+- Provider differences stay behind capability interfaces.
+- Model output is untrusted until validated. Citations and learner updates are proposals, not authoritative writes.
+- Do not log request/response bodies by default.

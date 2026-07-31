@@ -1,0 +1,42 @@
+import type { Metadata } from 'next';
+import { IBM_Plex_Mono, IBM_Plex_Sans, Newsreader } from 'next/font/google';
+import './globals.css';
+
+const display = Newsreader({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+const body = IBM_Plex_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600'],
+  variable: '--font-body',
+  display: 'swap',
+});
+
+const mono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-mono',
+  display: 'swap',
+});
+
+export const metadata: Metadata = {
+  title: 'Omakase — Learn AI properly.',
+  description:
+    'Local-first AI learning studio. Bring sources, learn with citations, probe understanding. No accounts.',
+  openGraph: {
+    title: 'Omakase',
+    description: 'Your personal AI learning studio that proves you understand.',
+    type: 'website',
+  },
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+      <body>{children}</body>
+    </html>
+  );
+}

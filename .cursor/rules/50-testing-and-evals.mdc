@@ -1,0 +1,17 @@
+---
+description: Testing and AI evaluation standards
+globs:
+  - apps/desktop/tests/**/*
+  - evals/**/*
+  - packages/contracts/**/*.test.ts
+  - .github/workflows/**/*
+---
+
+# Testing and evals
+
+- Deterministic correctness tests come before subjective model judgments.
+- Every AI behavior change requires a corresponding eval or test fixture.
+- Citation validation and learner-evidence validation must remain deterministic and 100% valid.
+- Live model evals are opt-in and excluded from ordinary CI.
+- Evaluation results compare against committed baselines; do not weaken thresholds just to pass CI.
+- Prefer AI SDK mock providers for unit/integration/CI.

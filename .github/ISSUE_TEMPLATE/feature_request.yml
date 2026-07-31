@@ -1,0 +1,39 @@
+name: Feature request
+description: Suggest an improvement that fits Omakase's product contract
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Feature ideas should stay aligned with a **local-first learning studio** —
+        not a generic chatbot, feed reader, or cloud note app.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What learning friction does this address?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should Omakase do instead?
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: Product fit
+      options:
+        - label: Keeps sources, embeddings, and learner state local by default
+          required: true
+        - label: Does not require a hosted backend or user accounts
+          required: true
+        - label: Does not expose retrieval/embedding machinery to normal users
+          required: false

@@ -1,0 +1,10 @@
+{"id":"prov-openai-ok","provider":"openai","capability":"chat","degradedHonestly":true,"localStatePreserved":true}
+{"id":"prov-anthropic-ok","provider":"anthropic","capability":"chat","degradedHonestly":true,"localStatePreserved":true}
+{"id":"prov-openrouter-ok","provider":"openrouter","capability":"chat","degradedHonestly":true,"localStatePreserved":true}
+{"id":"prov-no-web-search","provider":"openai","capability":"web_search_absent","degradedHonestly":true,"localStatePreserved":true}
+{"id":"prov-no-vision","provider":"anthropic","capability":"vision_absent","degradedHonestly":true,"localStatePreserved":true}
+{"id":"prov-no-transcription","provider":"openrouter","capability":"transcription_absent","degradedHonestly":true,"localStatePreserved":true}
+{"id":"prov-malformed-structured","provider":"mock","capability":"malformed_structured_output","degradedHonestly":true,"localStatePreserved":true}
+{"id":"prov-timeout","provider":"mock","capability":"timeout","degradedHonestly":true,"localStatePreserved":true}
+{"id":"prov-rate-limit","provider":"openai","capability":"rate_limit","degradedHonestly":true,"localStatePreserved":true}
+{"id":"prov-partial-stream","provider":"anthropic","capability":"partial_stream_failure","degradedHonestly":true,"localStatePreserved":true}

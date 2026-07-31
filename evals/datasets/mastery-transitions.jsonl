@@ -1,0 +1,5 @@
+{"id":"mastery-reading-only","fromLevel":"unknown","toLevel":"can_explain","readingOnly":true,"evidenceValid":false,"allowedTransition":false,"expect":"reject"}
+{"id":"mastery-encountered-ok","fromLevel":"unknown","toLevel":"encountered","readingOnly":true,"evidenceValid":true,"allowedTransition":true,"expect":"accept"}
+{"id":"mastery-explain-with-evidence","fromLevel":"encountered","toLevel":"can_explain","readingOnly":false,"evidenceValid":true,"allowedTransition":true,"expect":"accept"}
+{"id":"mastery-explain-no-evidence","fromLevel":"encountered","toLevel":"can_explain","readingOnly":false,"evidenceValid":false,"allowedTransition":false,"expect":"reject"}
+{"id":"mastery-contradiction-retained","fromLevel":"can_explain","toLevel":"can_explain","readingOnly":false,"evidenceValid":true,"allowedTransition":true,"expect":"accept","note":"contradictory evidence retained without silent overwrite"}

@@ -1,0 +1,4 @@
+{"id":"cite-valid-s1","contextBlocks":[{"handle":"S1","sourceBlockId":1},{"handle":"S2","sourceBlockId":2}],"proposedCitations":[{"handle":"S1","claimSummary":"Gradient descent updates parameters","fabricated":false}],"expect":"accept"}
+{"id":"cite-fabricated-s9","contextBlocks":[{"handle":"S1","sourceBlockId":1}],"proposedCitations":[{"handle":"S9","claimSummary":"Invented claim","fabricated":true}],"expect":"reject_fabricated"}
+{"id":"cite-mixed","contextBlocks":[{"handle":"S1","sourceBlockId":1}],"proposedCitations":[{"handle":"S1","claimSummary":"ok","fabricated":false},{"handle":"S3","claimSummary":"bad","fabricated":true}],"expect":"reject_fabricated"}
+{"id":"cite-empty-context","contextBlocks":[],"proposedCitations":[{"handle":"S1","claimSummary":"no context","fabricated":true}],"expect":"reject_all"}

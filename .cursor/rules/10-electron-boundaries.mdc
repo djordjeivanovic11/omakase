@@ -1,0 +1,19 @@
+---
+description: Electron process and IPC security boundaries
+globs:
+  - apps/desktop/src/main/**/*
+  - apps/desktop/src/preload/**/*
+  - apps/desktop/src/renderer/**/*
+  - apps/desktop/src/utility/**/*
+  - apps/desktop/forge.config.ts
+---
+
+# Electron boundaries
+
+- Renderer has no direct Node.js access (`nodeIntegration: false`, `contextIsolation: true`, `sandbox: true`).
+- Preload exposes a narrow typed API only — never generic IPC invoke/send.
+- No arbitrary filesystem, shell, SQL, or network bridge from the renderer.
+- Main owns DB, secrets, providers, jobs, and network policy.
+- Utility processes may do heavy work but must not write the database directly.
+- Packaged asset paths must work outside the repository.
+- Behavior must be verified in the packaged app, not only in development.

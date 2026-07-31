@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+env:
+  OMAKASE_TEST: '1'
+  OMAKASE_MOCK_PROVIDER: '1'
+
+jobs:
+  verify:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Doctor
+        run: pnpm run doctor
+
+      - name: Build contracts
+        run: pnpm build:contracts
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+      - name: Integration tests
+        run: pnpm test:integration
+
+      - name: Deterministic AI evals
+        run: pnpm eval:deterministic
+
+      - name: Promptfoo offline regression
+        run: pnpm eval:promptfoo
+
+      - name: Promptfoo red team (offline)
+        run: pnpm eval:redteam
+
+      - name: Full test suite
+        run: pnpm test
+
+      - name: License report
+        run: pnpm licenses
+
+      - name: Build website
+        run: pnpm build:website
+
+      - name: Build extension
+        run: pnpm build:extension
+
+      - name: Package desktop (macOS)
+        if: runner.os == 'macOS'
+        run: pnpm build:desktop
+
+      - name: Package desktop (Windows)
+        if: runner.os == 'Windows'
+        run: pnpm build:desktop

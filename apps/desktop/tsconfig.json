@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "types": ["node"],
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@main/*": ["src/main/*"],
+      "@core/*": ["src/core/*"],
+      "@renderer/*": ["src/renderer/*"],
+      "@preload/*": ["src/preload/*"]
+    }
+  },
+  "include": [
+    "src/**/*",
+    "tests/unit/**/*",
+    "tests/integration/**/*",
+    "tests/helpers/**/*",
+    "forge.config.ts",
+    "vite.*.config.ts",
+    "vitest.config.ts"
+  ],
+  "exclude": ["tests/e2e/**/*"]
+}

@@ -1,0 +1,64 @@
+%PDF-1.4
+%‚„œ”
+1 0 obj<< /Type /Catalog /Pages 2 0 R >>endobj
+2 0 obj<< /Type /Pages /Kids [3 0 R 5 0 R 7 0 R] /Count 3 >>endobj
+3 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 9 0 R >> >> >>endobj
+4 0 obj<< /Length 1126 >>stream
+BT /F1 11 Tf 50 750 Td (Cache Write Policies) Tj ET
+BT /F1 11 Tf 50 724 Td (A cache sits between a client and a slower backing store. The policy that governs how) Tj ET
+BT /F1 11 Tf 50 708 Td ( writes reach the store determines both performance and durability of cached data und) Tj ET
+BT /F1 11 Tf 50 692 Td (er failure.) Tj ET
+BT /F1 11 Tf 50 650 Td (Write-through caching writes to the cache and the backing store at the same time. Aft) Tj ET
+BT /F1 11 Tf 50 634 Td (er a successful write, the two never diverge. Reads after a write always see the same) Tj ET
+BT /F1 11 Tf 50 618 Td ( value in both places. The cost is latency: every write pays for the store round trip) Tj ET
+BT /F1 11 Tf 50 602 Td ( before the client continues.) Tj ET
+BT /F1 11 Tf 50 560 Td (Write-back caching writes only to the cache and marks the entry dirty. The store writ) Tj ET
+BT /F1 11 Tf 50 544 Td (e is deferred until the entry is evicted or flushed. This is faster under write-heavy) Tj ET
+BT /F1 11 Tf 50 528 Td ( load, but a crash before the flush can lose pending writes that only existed in memo) Tj ET
+BT /F1 11 Tf 50 512 Td (ry.) Tj ET
+endstream
+endobj
+5 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 6 0 R /Resources << /Font << /F1 9 0 R >> >> >>endobj
+6 0 obj<< /Length 966 >>stream
+BT /F1 11 Tf 50 750 Td (Trade-offs and failure modes) Tj ET
+BT /F1 11 Tf 50 724 Td (Cache stampede happens when many clients miss the same key at once and all recompute ) Tj ET
+BT /F1 11 Tf 50 708 Td (the value. Mitigations include single-flight locks, probabilistic early expiration, a) Tj ET
+BT /F1 11 Tf 50 692 Td (nd staggered TTLs so clients do not expire together.) Tj ET
+BT /F1 11 Tf 50 650 Td (For a payment ledger, prefer write-through because losing a write is unacceptable. Fo) Tj ET
+BT /F1 11 Tf 50 634 Td (r a page view counter, write-back is acceptable because a few lost increments do not ) Tj ET
+BT /F1 11 Tf 50 618 Td (matter to the product.) Tj ET
+BT /F1 11 Tf 50 576 Td (Read-through caches populate themselves on miss. Write-around skips the cache on writ) Tj ET
+BT /F1 11 Tf 50 560 Td (e and only fills it on subsequent reads, which can reduce cache pollution for write-o) Tj ET
+BT /F1 11 Tf 50 544 Td (nce data that is rarely read again.) Tj ET
+endstream
+endobj
+7 0 obj<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 8 0 R /Resources << /Font << /F1 9 0 R >> >> >>endobj
+8 0 obj<< /Length 900 >>stream
+BT /F1 11 Tf 50 750 Td (Operational guidance) Tj ET
+BT /F1 11 Tf 50 724 Td (Document the durability expectation of each cached value before picking a policy. Mea) Tj ET
+BT /F1 11 Tf 50 708 Td (sure p99 write latency under load when evaluating write-through. Measure dirty-entry ) Tj ET
+BT /F1 11 Tf 50 692 Td (exposure windows when evaluating write-back.) Tj ET
+BT /F1 11 Tf 50 650 Td (Warm the cache after deploy when cold misses would stampede. Prefer explicit flush po) Tj ET
+BT /F1 11 Tf 50 634 Td (ints before planned process restarts when dirty write-back entries exist.) Tj ET
+BT /F1 11 Tf 50 592 Td (Summary: write-through gives strong consistency at higher write latency. Write-back g) Tj ET
+BT /F1 11 Tf 50 576 Td (ives lower write latency with durability risk until flush. Stampede is many concurren) Tj ET
+BT /F1 11 Tf 50 560 Td (t misses for one key; protect it with coordination.) Tj ET
+endstream
+endobj
+9 0 obj<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>endobj
+xref
+0 10
+0000000000 65535 f 
+0000000015 00000 n 
+0000000062 00000 n 
+0000000129 00000 n 
+0000000253 00000 n 
+0000001429 00000 n 
+0000001553 00000 n 
+0000002568 00000 n 
+0000002692 00000 n 
+0000003641 00000 n 
+trailer<< /Size 10 /Root 1 0 R >>
+startxref
+3709
+%%EOF

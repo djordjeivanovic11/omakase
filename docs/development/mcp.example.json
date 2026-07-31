@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp@latest"],
+      "env": {
+        "CONTEXT7_API_KEY": "${CONTEXT7_API_KEY}"
+      }
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@0.0.34"],
+      "env": {
+        "PLAYWRIGHT_MCP_ISOLATED": "1"
+      }
+    },
+    "github": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-github@latest"],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "${GITHUB_PERSONAL_ACCESS_TOKEN}"
+      }
+    }
+  },
+  "_omakaseNotes": {
+    "doNotCommitSecrets": true,
+    "copyTo": ".cursor/mcp.json (gitignored) after filling env via your shell or Cursor secrets UI",
+    "githubTokenScopes": "repo (read), issues/PR read; add write only when explicitly needed",
+    "playwright": "Use an isolated browser profile only. Prefer localhost / static site / extension test pages. Desktop E2E uses real Playwright Electron APIs, not MCP.",
+    "context7": "Request exact installed package versions (ai@7.0.43, electron@43.x, etc.). Local types and tests beat retrieved docs on conflict.",
+    "forbiddenMcp": [
+      "filesystem",
+      "shell",
+      "memory",
+      "database",
+      "sequential-thinking",
+      "generic web-search"
+    ]
+  }
+}

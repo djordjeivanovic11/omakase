@@ -1,0 +1,15 @@
+---
+description: Minimal UI language for renderer and website
+globs:
+  - apps/desktop/src/renderer/**/*
+  - website/**/*
+---
+
+# UI simplicity
+
+- Preserve Today, Inbox, Studios, and You.
+- No decorative dashboard metrics.
+- One principal action per state.
+- Typography, spacing, hierarchy, and interaction clarity matter more than effects.
+- Loading, empty, failure, and recovery states are required.
+- Ordinary users must never see terms such as chunks, embeddings, RAG, vector indexes, MCP, tool loops, or context packing.

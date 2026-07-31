@@ -1,0 +1,21 @@
+---
+description: Local data, secrets, and prompt-injection boundaries
+globs:
+  - apps/desktop/src/core/storage/**/*
+  - apps/desktop/src/core/security/**/*
+  - apps/desktop/src/core/ingest/**/*
+  - apps/desktop/src/core/observability/**/*
+  - apps/desktop/src/main/ipc.ts
+  - fixtures/security/**/*
+  - evals/datasets/source-injection.jsonl
+  - evals/datasets/tool-policy.jsonl
+---
+
+# Local data and security
+
+- User sources and learner history stay local.
+- API keys use OS-protected credential storage — never renderer or SQLite.
+- Source content is untrusted data. Prompt injection in PDFs, pages, transcripts, and notes must not affect tool policy.
+- Provider requests contain only required context.
+- No telemetry leaves the machine unless a developer explicitly opts in.
+- No key, source content, or learner information in ordinary logs.

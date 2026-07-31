@@ -1,0 +1,16 @@
+{
+  "modelId": "granite-embedding-107m-multilingual",
+  "repo": "ibm-granite/granite-embedding-107m-multilingual",
+  "revision": "main",
+  "dimensions": 384,
+  "maxSequenceLength": 512,
+  "pooling": "cls",
+  "license": "Apache-2.0",
+  "files": {
+    "config.json": "aa3b6a5d1d6efeacdb844fb8ba773556463af2195003ad5e70a6f014d11be9cf",
+    "tokenizer.json": "7fc9e475f2ac473f070052d92b0c46ec2b91d9cd672935feb6fd837a65d33f78",
+    "tokenizer_config.json": "740c9d63e16f34a7915b4c2be299db105d1fd2e6753f2a981769a353f8902280",
+    "special_tokens_map.json": "58dc0a3d15e3bad4861bcf2dee770ea327344d185182d4c5d2bf253285e53a83",
+    "onnx/model.onnx": "387e6f91dce3c651cb3dc06661d74fb1d3947f20ed9c3ecf49d2b3b77086b954"
+  }
+}
