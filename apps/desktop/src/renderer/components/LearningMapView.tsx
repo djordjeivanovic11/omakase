@@ -14,7 +14,9 @@ export function LearningMapView({ map }: LearningMapViewProps) {
       <section>
         <h3>Solid</h3>
         {map.secure.length === 0 ? (
-          <p className="muted">Nothing is solid yet — that takes clear evidence from your answers.</p>
+          <p className="muted">
+            Nothing is solid yet — that takes clear evidence from your answers.
+          </p>
         ) : (
           <ul>
             {map.secure.map((c) => (

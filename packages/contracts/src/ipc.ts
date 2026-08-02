@@ -20,6 +20,13 @@ export const IpcChannels = {
   studiosUpdate: 'studios:update',
   studiosDelete: 'studios:delete',
   studiosAssignSource: 'studios:assignSource',
+  collectionsList: 'collections:list',
+  collectionsGet: 'collections:get',
+  collectionsCreate: 'collections:create',
+  collectionsUpdate: 'collections:update',
+  collectionsDelete: 'collections:delete',
+  collectionsAddSource: 'collections:addSource',
+  collectionsRemoveSource: 'collections:removeSource',
 
   sourcesListInbox: 'sources:listInbox',
   sourcesGet: 'sources:get',
@@ -37,6 +44,7 @@ export const IpcChannels = {
   agentStartSession: 'agent:startSession',
   agentSendMessage: 'agent:sendMessage',
   agentCancel: 'agent:cancel',
+  agentListActivity: 'agent:listActivity',
   agentStreamEvent: 'agent:streamEvent',
 
   probeStart: 'probe:start',

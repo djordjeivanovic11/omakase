@@ -97,7 +97,7 @@ export class TestSafeStorage implements SafeStorageLike {
     const input = Buffer.from(plain, 'utf8');
     const out = Buffer.alloc(input.length);
     for (let i = 0; i < input.length; i++) {
-      out[i] = input[i]! ^ key[i % key.length]!;
+      out[i] = (input[i] ?? 0) ^ (key[i % key.length] ?? 0);
     }
     return out;
   }

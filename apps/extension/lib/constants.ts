@@ -11,7 +11,8 @@ export const EXPECTED_EXTENSION_IDS = {
 } as const;
 
 export const QUEUE_STORAGE_KEY = 'omakase_capture_queue_v1';
+export const PENDING_CAPTURE_STORAGE_KEY = 'omakase_pending_captures_v1';
 export const STUDIOS_CACHE_KEY = 'omakase_studios_cache_v1';
+export const LAST_STUDIO_KEY = 'omakase_last_studio_v1';
 
 export const RETRY_INTERVAL_MS = 60_000;
-export const MAX_QUEUE_ATTEMPTS = 12;

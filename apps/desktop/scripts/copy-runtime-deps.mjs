@@ -34,8 +34,12 @@ function isRelevantOptionalDep(name, platform, arch) {
     ia32: ['ia32', 'x86'],
   };
 
-  const mentionsPlatform = Object.values(platformTokens).flat().some((token) => lower.includes(token));
-  const mentionsArch = Object.values(archTokens).flat().some((token) => lower.includes(token));
+  const mentionsPlatform = Object.values(platformTokens)
+    .flat()
+    .some((token) => lower.includes(token));
+  const mentionsArch = Object.values(archTokens)
+    .flat()
+    .some((token) => lower.includes(token));
 
   if (mentionsPlatform) {
     const allowed = platformTokens[platform] ?? [platform];

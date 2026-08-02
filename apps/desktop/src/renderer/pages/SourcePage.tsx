@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { Link, useLocation, useParams } from 'react-router';
 import { getApi } from '../api.js';
 import { Button } from '../components/Button.js';
+import { PdfViewer } from '../components/PdfViewer.js';
 import { ProgressBanner } from '../components/ProgressBanner.js';
 
 export function SourcePage() {
@@ -10,6 +11,7 @@ export function SourcePage() {
   const location = useLocation();
   const [source, setSource] = useState<Source | null>(null);
   const [blocks, setBlocks] = useState<SourceBlock[]>([]);
+  const [activePage, setActivePage] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -28,6 +30,8 @@ export function SourcePage() {
     const hash = location.hash.replace(/^#/, '');
     if (!hash || blocks.length === 0) return;
     const el = document.getElementById(hash);
+    const block = blocks.find((candidate) => `block-${candidate.id}` === hash);
+    if (block?.pageStart != null) setActivePage(block.pageStart);
     if (!el) return;
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     el.classList.add('source-block-highlight');
@@ -51,7 +55,9 @@ export function SourcePage() {
           <button
             type="button"
             className="linkish"
-            onClick={() => void getApi().openExternal(source.canonicalUrl!)}
+            onClick={() => {
+              if (source.canonicalUrl) void getApi().openExternal(source.canonicalUrl);
+            }}
           >
             Open original
           </button>
@@ -81,8 +87,10 @@ export function SourcePage() {
       </div>
 
       <section className="card">
-        <h2>Content</h2>
-        {blocks.length === 0 ? (
+        <h2>{source.kind === 'pdf' ? 'Original PDF' : 'Content'}</h2>
+        {source.kind === 'pdf' && source.activeVersionId ? (
+          <PdfViewer sourceVersionId={source.activeVersionId} initialPage={activePage} />
+        ) : blocks.length === 0 ? (
           <p className="muted">
             {source.processingStatus === 'ready'
               ? 'No readable text was extracted from this source.'
@@ -95,9 +103,7 @@ export function SourcePage() {
                 <p className="muted" style={{ fontSize: '0.85rem' }}>
                   {block.headingPathText}
                   {block.pageStart != null ? ` · p.${block.pageStart}` : ''}
-                  {block.timeStartMs != null
-                    ? ` · ${formatMs(block.timeStartMs)}`
-                    : ''}
+                  {block.timeStartMs != null ? ` · ${formatMs(block.timeStartMs)}` : ''}
                 </p>
               ) : null}
               <pre>{block.text}</pre>

@@ -24,7 +24,7 @@ export function readAllowedExtensionIds(libraryRoot: string): string[] {
   if (!fs.existsSync(file)) return [];
   try {
     const parsed = JSON.parse(fs.readFileSync(file, 'utf8')) as { ids?: string[] };
-    return (parsed.ids ?? []).filter((id) => typeof id === 'string' && id.length > 10);
+    return (parsed.ids ?? []).filter((id) => typeof id === 'string' && /^[a-p]{32}$/.test(id));
   } catch {
     return [];
   }
@@ -53,7 +53,10 @@ function chromeNativeMessagingDirs(): string[] {
       path.join(home, 'Library/Application Support/Google/Chrome/NativeMessagingHosts'),
       path.join(home, 'Library/Application Support/Chromium/NativeMessagingHosts'),
       path.join(home, 'Library/Application Support/Microsoft Edge/NativeMessagingHosts'),
-      path.join(home, 'Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts'),
+      path.join(
+        home,
+        'Library/Application Support/BraveSoftware/Brave-Browser/NativeMessagingHosts',
+      ),
     ];
   }
   if (process.platform === 'linux') {

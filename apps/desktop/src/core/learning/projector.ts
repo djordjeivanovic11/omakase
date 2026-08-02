@@ -57,9 +57,9 @@ export function projectConceptStateForStudio(
     .all(studioId) as EventRow[];
 
   const retracted = new Set(
-    rows
-      .filter((r) => r.event_kind === 'retraction' && r.retracts_event_id)
-      .map((r) => r.retracts_event_id!),
+    rows.flatMap((r) =>
+      r.event_kind === 'retraction' && r.retracts_event_id ? [r.retracts_event_id] : [],
+    ),
   );
 
   const byConcept = new Map<

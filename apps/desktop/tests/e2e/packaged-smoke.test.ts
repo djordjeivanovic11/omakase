@@ -183,16 +183,17 @@ describe('packaged application', () => {
     } else {
       await continueButton.or(mockButton).first().click({ timeout: 15_000 });
       // Teacher → Continue → studio, or Connect mock → studio
-      if (
-        !(await page
-          .getByLabel('Studio name')
-          .isVisible()
-          .catch(() => false))
-      ) {
+      const reachedStudio = await page
+        .getByLabel('Studio name')
+        .waitFor({ state: 'visible', timeout: 1_000 })
+        .then(() => true)
+        .catch(() => false);
+      if (!reachedStudio) {
         await page.getByRole('button', { name: /^continue$/i }).click({ timeout: 10_000 });
       }
     }
 
+    await page.getByLabel('Studio name').waitFor({ state: 'visible', timeout: 10_000 });
     await page.getByLabel('Studio name').fill('Smoke Studio');
     await page.getByRole('button', { name: /start learning/i }).click();
 

@@ -4,7 +4,9 @@ import {
   type AgentStreamEvent,
   AnswerProbeInputSchema,
   AssignSourceToStudioInputSchema,
+  CollectionMembershipInputSchema,
   type ConceptState,
+  CreateCollectionInputSchema,
   CreateProviderProfileInputSchema,
   CreateStudioInputSchema,
   ImportPdfSourceInputSchema,
@@ -12,6 +14,7 @@ import {
   ImportTranscriptSourceInputSchema,
   ImportUrlSourceInputSchema,
   IpcChannels,
+  ListAgentActivityInputSchema,
   type NextAction,
   type ProviderProfile,
   SendAgentMessageInputSchema,
@@ -19,12 +22,12 @@ import {
   StartLearnSessionInputSchema,
   StartProbeInputSchema,
   type TodayView,
+  UpdateCollectionInputSchema,
   UpdateStudioInputSchema,
   UuidV7Schema,
 } from '@omakase/contracts';
-import { Defuddle } from 'defuddle/node';
 import { app, dialog, type IpcMainInvokeEvent, ipcMain, shell, type WebContents } from 'electron';
-import { ZodError } from 'zod';
+import { ZodError, z } from 'zod';
 import { createBackup } from '../core/backup/backup.js';
 import { isBackupBundle } from '../core/backup/bundle.js';
 import { buildDiagnosticsPreview, exportDiagnosticsBundle } from '../core/backup/diagnostics.js';
@@ -38,14 +41,14 @@ import {
   isExplicitMockProfile,
   isMockProviderRuntimeAllowed,
 } from '../core/providers/model-defaults.js';
+import { fetchUrlMarkdown } from '../core/security/fetch-url.js';
 import { redactSecrets } from '../core/security/redact.js';
-import { FETCH_LIMITS, validateHttpUrl } from '../core/security/url-policy.js';
 import { importPdfSource } from '../core/sources/pdf-ingest.js';
 import { importTextSource } from '../core/sources/text-ingest.js';
 import { importTranscriptSource } from '../core/sources/transcript-ingest.js';
 import { importUrlMarkdown } from '../core/sources/web-ingest.js';
 import { integrityCheck } from '../core/storage/database.js';
-import { nowMs } from '../core/storage/ids.js';
+import { newId, nowMs } from '../core/storage/ids.js';
 import type { AppContext } from './app-context.js';
 import { listRegisteredExtensionIds, registerExtensionId } from './native-host.js';
 import { getMainWindow, openValidatedExternal } from './window.js';
@@ -54,6 +57,56 @@ const cancelledSessions = new Set<string>();
 const activeStreams = new Map<string, AbortController>();
 
 const log = getLogger().child('ipc');
+
+const ProviderTestInputSchema = z.object({
+  profileId: UuidV7Schema,
+  modelId: z.string().trim().min(1).max(200).optional(),
+});
+const ProviderDefaultModelInputSchema = z.object({
+  profileId: UuidV7Schema,
+  modelId: z.string().trim().min(1).max(200),
+});
+const LearnerProfileUpdateInputSchema = z
+  .object({
+    displayName: z.string().max(200).nullable().optional(),
+    summary: z.string().max(4000).nullable().optional(),
+    background: z.array(z.string().max(500)).max(50).optional(),
+    goals: z.array(z.string().max(500)).max(50).optional(),
+    preferences: z.record(z.unknown()).optional(),
+  })
+  .superRefine((value, refinement) => {
+    if (JSON.stringify(value).length > 50_000) {
+      refinement.addIssue({ code: z.ZodIssueCode.custom, message: 'Learner profile is too large' });
+    }
+  });
+const LearnerCorrectionInputSchema = z.object({
+  conceptId: UuidV7Schema,
+  studioId: UuidV7Schema,
+  rationale: z.string().trim().min(1).max(4000),
+});
+const LearnerRetractionInputSchema = z.object({
+  eventId: UuidV7Schema,
+  conceptId: UuidV7Schema,
+  studioId: UuidV7Schema.optional(),
+  rationale: z.string().trim().min(1).max(4000),
+});
+const UsageLimitInputSchema = z
+  .object({
+    scopeType: z.enum(['global', 'studio', 'provider_profile']),
+    scopeId: z.string().trim().min(1).max(200),
+    period: z.enum(['session', 'day', 'month']),
+    warningMicrousd: z.number().int().nonnegative().nullable().optional(),
+    hardLimitMicrousd: z.number().int().nonnegative().nullable().optional(),
+    enabled: z.boolean().optional(),
+  })
+  .refine(
+    (value) =>
+      value.warningMicrousd == null ||
+      value.hardLimitMicrousd == null ||
+      value.warningMicrousd <= value.hardLimitMicrousd,
+    'Warning limit cannot exceed the hard limit',
+  );
+const ExtensionIdInputSchema = z.string().regex(/^[a-p]{32}$/);
 
 /**
  * Errors cross the process boundary into the renderer, so they must carry a
@@ -74,6 +127,9 @@ function handle(channel: string, fn: IpcHandler): void {
   ipcMain.handle(channel, async (event, raw) => {
     const started = Date.now();
     try {
+      // Keep the renderer trust boundary centralized so new handlers cannot
+      // accidentally omit sender validation.
+      validateSender(event);
       return await fn(event, raw);
     } catch (error) {
       log.error('IPC handler failed', { channel, err: error, ms: Date.now() - started });
@@ -226,37 +282,6 @@ function listStudioSources(ctx: AppContext, studioId: string): Source[] {
   }));
 }
 
-async function fetchUrlMarkdown(url: string): Promise<{ title: string; markdown: string }> {
-  const validated = validateHttpUrl(url);
-  if (!validated.ok || !validated.url) {
-    throw new Error(validated.reason ?? 'invalid_url');
-  }
-
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_LIMITS.timeoutMs);
-  try {
-    const response = await fetch(validated.url.toString(), {
-      signal: controller.signal,
-      redirect: 'follow',
-    });
-    if (!response.ok) {
-      throw new Error(`fetch_failed:${response.status}`);
-    }
-    const contentType = response.headers.get('content-type') ?? '';
-    const html = await response.text();
-    if (contentType.includes('text/markdown') || url.endsWith('.md')) {
-      return { title: validated.url.hostname, markdown: html };
-    }
-    const result = await Defuddle(html, validated.url.toString());
-    return {
-      title: result.title ?? validated.url.hostname,
-      markdown: result.content ?? html,
-    };
-  } finally {
-    clearTimeout(timeout);
-  }
-}
-
 function textIngestDeps(ctx: AppContext) {
   return {
     db: ctx.db.db,
@@ -305,9 +330,9 @@ export function registerIpcHandlers(ctx: AppContext): void {
     );
     const studios = ctx.studios.list();
     const sourceCount = (
-      ctx.db.db
-        .prepare("SELECT COUNT(*) AS count FROM sources WHERE deleted_at IS NULL")
-        .get() as { count: number }
+      ctx.db.db.prepare('SELECT COUNT(*) AS count FROM sources WHERE deleted_at IS NULL').get() as {
+        count: number;
+      }
     ).count;
     const hasExistingWork = studios.length > 0 || sourceCount > 0;
     return {
@@ -335,7 +360,7 @@ export function registerIpcHandlers(ctx: AppContext): void {
   });
 
   handle(IpcChannels.providersTest, async (_event, raw) => {
-    const { profileId, modelId } = raw as { profileId: string; modelId?: string };
+    const { profileId, modelId } = ProviderTestInputSchema.parse(raw);
     return testProviderConnection(
       ctx.db.db,
       ctx.secretStore,
@@ -345,8 +370,8 @@ export function registerIpcHandlers(ctx: AppContext): void {
   });
 
   handle(IpcChannels.providersSetDefaultModel, (_event, raw) => {
-    const { profileId, modelId } = raw as { profileId: string; modelId: string };
-    return ctx.providers.updateProfile(UuidV7Schema.parse(profileId), { defaultModelId: modelId });
+    const { profileId, modelId } = ProviderDefaultModelInputSchema.parse(raw);
+    return ctx.providers.updateProfile(profileId, { defaultModelId: modelId });
   });
 
   handle(IpcChannels.providersDelete, (_event, raw) => {
@@ -388,6 +413,40 @@ export function registerIpcHandlers(ctx: AppContext): void {
   handle(IpcChannels.studiosAssignSource, (_event, raw) => {
     const input = AssignSourceToStudioInputSchema.parse(raw);
     ctx.studios.assignSource(input.studioId, input.sourceId, input.role);
+    return { ok: true };
+  });
+
+  handle(IpcChannels.collectionsList, (_event, raw) => {
+    return ctx.collections.list(UuidV7Schema.parse(raw));
+  });
+
+  handle(IpcChannels.collectionsGet, (_event, raw) => {
+    const id = UuidV7Schema.parse(raw);
+    const collection = ctx.collections.get(id);
+    return collection ? { collection, sourceIds: ctx.collections.listSourceIds(id) } : null;
+  });
+
+  handle(IpcChannels.collectionsCreate, (_event, raw) => {
+    return ctx.collections.create(CreateCollectionInputSchema.parse(raw));
+  });
+
+  handle(IpcChannels.collectionsUpdate, (_event, raw) => {
+    return ctx.collections.update(UpdateCollectionInputSchema.parse(raw));
+  });
+
+  handle(IpcChannels.collectionsDelete, (_event, raw) => {
+    ctx.collections.delete(UuidV7Schema.parse(raw));
+    return { ok: true };
+  });
+
+  handle(IpcChannels.collectionsAddSource, (_event, raw) => {
+    ctx.collections.addSource(CollectionMembershipInputSchema.parse(raw));
+    return { ok: true };
+  });
+
+  handle(IpcChannels.collectionsRemoveSource, (_event, raw) => {
+    const input = CollectionMembershipInputSchema.parse(raw);
+    ctx.collections.removeSource(input.collectionId, input.sourceId);
     return { ok: true };
   });
 
@@ -497,7 +556,11 @@ export function registerIpcHandlers(ctx: AppContext): void {
     activeStreams.set(input.sessionId, controller);
 
     try {
-      for await (const streamEvent of ctx.agent.sendMessage(input.sessionId, input.message)) {
+      for await (const streamEvent of ctx.agent.sendMessage(
+        input.sessionId,
+        input.message,
+        controller.signal,
+      )) {
         if (cancelledSessions.has(input.sessionId)) {
           sendAgentEvent(wc, { type: 'cancelled', sessionId: input.sessionId });
           break;
@@ -515,6 +578,11 @@ export function registerIpcHandlers(ctx: AppContext): void {
     cancelledSessions.add(sessionId);
     activeStreams.get(sessionId)?.abort();
     return { ok: true };
+  });
+
+  handle(IpcChannels.agentListActivity, (_event, raw) => {
+    const input = ListAgentActivityInputSchema.parse(raw);
+    return ctx.agent.listActivity(input.sessionId);
   });
 
   handle(IpcChannels.probeStart, (_event, raw) => {
@@ -623,13 +691,7 @@ export function registerIpcHandlers(ctx: AppContext): void {
   });
 
   handle(IpcChannels.learnerUpdateProfile, (_event, raw) => {
-    const input = raw as {
-      displayName?: string | null;
-      summary?: string | null;
-      background?: string[];
-      goals?: string[];
-      preferences?: Record<string, unknown>;
-    };
+    const input = LearnerProfileUpdateInputSchema.parse(raw);
     const ts = nowMs();
     const existing = ctx.db.db
       .prepare('SELECT * FROM learner_profile WHERE id = ?')
@@ -664,15 +726,11 @@ export function registerIpcHandlers(ctx: AppContext): void {
   });
 
   handle(IpcChannels.learnerCorrect, (_event, raw) => {
-    const { conceptId, studioId, rationale } = raw as {
-      conceptId: string;
-      studioId: string;
-      rationale: string;
-    };
+    const { conceptId, studioId, rationale } = LearnerCorrectionInputSchema.parse(raw);
     const events = new LearningEventsRepo(ctx.db.db);
     events.append({
-      studioId: UuidV7Schema.parse(studioId),
-      conceptId: UuidV7Schema.parse(conceptId),
+      studioId,
+      conceptId,
       eventKind: 'manual_correction',
       demonstratedLevel: 'can_explain',
       confidence: 0.9,
@@ -682,21 +740,16 @@ export function registerIpcHandlers(ctx: AppContext): void {
   });
 
   handle(IpcChannels.learnerRetract, (_event, raw) => {
-    const { eventId, conceptId, studioId, rationale } = raw as {
-      eventId: string;
-      conceptId: string;
-      studioId?: string;
-      rationale: string;
-    };
+    const { eventId, conceptId, studioId, rationale } = LearnerRetractionInputSchema.parse(raw);
     const events = new LearningEventsRepo(ctx.db.db);
     events.append({
-      studioId: studioId ? UuidV7Schema.parse(studioId) : null,
-      conceptId: UuidV7Schema.parse(conceptId),
+      studioId: studioId ?? null,
+      conceptId,
       eventKind: 'retraction',
       demonstratedLevel: 'encountered',
       confidence: 1,
       rationale,
-      retractsEventId: UuidV7Schema.parse(eventId),
+      retractsEventId: eventId,
     });
     return { ok: true };
   });
@@ -717,20 +770,13 @@ export function registerIpcHandlers(ctx: AppContext): void {
   });
 
   handle(IpcChannels.usageSetLimits, (_event, raw) => {
-    const input = raw as {
-      scopeType: string;
-      scopeId: string;
-      period: string;
-      warningMicrousd?: number | null;
-      hardLimitMicrousd?: number | null;
-      enabled?: boolean;
-    };
+    const input = UsageLimitInputSchema.parse(raw);
     const ts = nowMs();
     ctx.db.db
       .prepare(
         `INSERT INTO usage_limits (
-          scope_type, scope_id, period, warning_microusd, hard_limit_microusd, enabled, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+          id, scope_type, scope_id, period, warning_microusd, hard_limit_microusd, enabled, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(scope_type, scope_id, period) DO UPDATE SET
           warning_microusd = excluded.warning_microusd,
           hard_limit_microusd = excluded.hard_limit_microusd,
@@ -738,6 +784,7 @@ export function registerIpcHandlers(ctx: AppContext): void {
           updated_at = excluded.updated_at`,
       )
       .run(
+        newId(),
         input.scopeType,
         input.scopeId,
         input.period,
@@ -852,12 +899,17 @@ export function registerIpcHandlers(ctx: AppContext): void {
   });
 
   handle(IpcChannels.shellOpenPath, (_event, raw) => {
-    const target = String(raw);
+    const target = z.string().min(1).max(2000).parse(raw);
+    const root = path.resolve(ctx.paths.root);
+    const resolvedTarget = path.resolve(target);
+    if (resolvedTarget !== root && !resolvedTarget.startsWith(`${root}${path.sep}`)) {
+      throw new Error('Opening paths outside the Omakase data directory is not allowed');
+    }
     return shell.openPath(target);
   });
 
   handle(IpcChannels.extensionRegisterId, (_event, raw) => {
-    return registerExtensionId(ctx, String(raw));
+    return registerExtensionId(ctx, ExtensionIdInputSchema.parse(raw));
   });
 
   handle(IpcChannels.extensionListIds, () => {

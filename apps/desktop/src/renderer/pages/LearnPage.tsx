@@ -1,4 +1,10 @@
-import type { AgentStreamEvent, Source, SourceBlock } from '@omakase/contracts';
+import type {
+  AgentEvent,
+  AgentStreamEvent,
+  EvidenceReference,
+  Source,
+  SourceBlock,
+} from '@omakase/contracts';
 import {
   type CSSProperties,
   type KeyboardEvent,
@@ -13,6 +19,7 @@ import { Link, useLocation, useParams, useSearchParams } from 'react-router';
 import { getApi } from '../api.js';
 import { Button } from '../components/Button.js';
 import { MarkdownText } from '../components/MarkdownText.js';
+import { PdfViewer } from '../components/PdfViewer.js';
 import { formatCitationLabel, referenceLabel } from '../lib/citations-display.js';
 
 interface ChatLine {
@@ -23,6 +30,7 @@ interface ChatLine {
     handle: string;
     claimSummary: string;
     sourceBlockId?: number;
+    evidence?: EvidenceReference;
     label?: string;
   }>;
 }
@@ -36,6 +44,16 @@ const MAX_SOURCE_SHARE = 72;
 function clampSourceShare(value: number): number {
   if (!Number.isFinite(value)) return DEFAULT_SOURCE_SHARE;
   return Math.min(MAX_SOURCE_SHARE, Math.max(MIN_SOURCE_SHARE, Math.round(value)));
+}
+
+function activityIcon(event: AgentEvent): string {
+  if (event.type.includes('TOOL')) return '⌘';
+  if (event.type.includes('SOURCE')) return '⌕';
+  if (event.type.includes('CITATION')) return '✓';
+  if (event.type.includes('CONCEPT')) return '◌';
+  if (event.status === 'failed' || event.status === 'warning') return '⚠';
+  if (event.status === 'succeeded') return '✓';
+  return '✦';
 }
 
 function readSavedSourceShare(): number {
@@ -59,11 +77,18 @@ function createLine(
 }
 
 export function LearnPage() {
-  const { sourceId } = useParams<{ sourceId: string }>();
+  const { sourceId, studioId: studioRouteId } = useParams<{
+    sourceId?: string;
+    studioId?: string;
+  }>();
   const [searchParams] = useSearchParams();
-  const location = useLocation() as { state?: { studioId?: string } };
+  const location = useLocation() as {
+    state?: { studioId?: string; sourceIds?: string[]; collectionId?: string };
+  };
   const [sessionId, setSessionId] = useState<string | null>(null);
-  const [studioId, setStudioId] = useState<string | null>(location.state?.studioId ?? null);
+  const [studioId, setStudioId] = useState<string | null>(
+    location.state?.studioId ?? studioRouteId ?? null,
+  );
   const [source, setSource] = useState<Source | null>(null);
   const [blocks, setBlocks] = useState<SourceBlock[]>([]);
   const [message, setMessage] = useState('');
@@ -71,7 +96,10 @@ export function LearnPage() {
   const [streaming, setStreaming] = useState('');
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [activities, setActivities] = useState<AgentEvent[]>([]);
   const [activeBlockId, setActiveBlockId] = useState<number | null>(null);
+  const [activePage, setActivePage] = useState<number | null>(null);
+  const [activeEvidence, setActiveEvidence] = useState<EvidenceReference | null>(null);
   const [activeReferenceHandle, setActiveReferenceHandle] = useState<string | null>(null);
   const [narrowTab, setNarrowTab] = useState<'source' | 'teacher'>('teacher');
   const [sourceShare, setSourceShare] = useState(readSavedSourceShare);
@@ -85,12 +113,25 @@ export function LearnPage() {
   const splitRef = useRef<HTMLDivElement | null>(null);
   const nextLineId = useRef(0);
   const citationsRef = useRef<
-    Array<{ handle: string; claimSummary: string; sourceBlockId?: number; label?: string }>
+    Array<{
+      handle: string;
+      claimSummary: string;
+      sourceBlockId?: number;
+      evidence?: EvidenceReference;
+      label?: string;
+    }>
   >([]);
   const openedRef = useRef(false);
 
   const mode = searchParams.get('mode') === 'ask' ? 'research' : 'learn';
   const title = mode === 'research' ? 'Ask' : 'Learn';
+  const scopeLabel = location.state?.sourceIds?.length
+    ? `${location.state.sourceIds.length} selected sources`
+    : location.state?.collectionId
+      ? 'Collection'
+      : sourceId
+        ? 'This source'
+        : 'Entire Studio';
   const [showDiag, setShowDiag] = useState(false);
   const splitStyle = {
     '--source-pane-share': `${sourceShare}%`,
@@ -145,7 +186,7 @@ export function LearnPage() {
   }, [sourceId]);
 
   useEffect(() => {
-    if (!sourceId || openedRef.current) return;
+    if ((!sourceId && !studioId) || openedRef.current) return;
     const resolveStudio = async () => {
       if (studioId) return studioId;
       const studios = await getApi().listStudios();
@@ -162,13 +203,34 @@ export function LearnPage() {
         return;
       }
       try {
-        const result = (await getApi().startAgentSession({
+        const sessionInput: {
+          studioId: string;
+          sourceId?: string;
+          scope?:
+            | { kind: 'selection'; sourceIds: string[] }
+            | { kind: 'collection'; collectionId: string }
+            | { kind: 'studio'; studioId: string };
+          mode: 'learn' | 'research';
+          objective: string;
+        } = {
           studioId: sid,
-          sourceId,
           mode,
           objective:
-            mode === 'research' ? 'Answer from sources' : 'Teach from the top of this source',
-        })) as { sessionId: string; runtimeContext?: { modelId?: string } };
+            mode === 'research' ? 'Answer from sources' : 'Teach from the selected sources',
+        };
+        if (location.state?.sourceIds?.length) {
+          sessionInput.scope = { kind: 'selection', sourceIds: location.state.sourceIds };
+        } else if (location.state?.collectionId) {
+          sessionInput.scope = { kind: 'collection', collectionId: location.state.collectionId };
+        } else if (sourceId) {
+          sessionInput.sourceId = sourceId;
+        } else {
+          sessionInput.scope = { kind: 'studio', studioId: sid };
+        }
+        const result = (await getApi().startAgentSession(sessionInput)) as {
+          sessionId: string;
+          runtimeContext?: { modelId?: string };
+        };
         setSessionId(result.sessionId);
         setDiag({ modelId: result.runtimeContext?.modelId });
         if (mode === 'learn' && !openedRef.current) {
@@ -185,11 +247,29 @@ export function LearnPage() {
         setStatus(err instanceof Error ? err.message : 'Could not start a learning session');
       }
     });
-  }, [sourceId, studioId, mode]);
+  }, [sourceId, studioId, mode, location.state]);
+
+  useEffect(() => {
+    if (!sessionId) return;
+    void getApi()
+      .listAgentActivity(sessionId)
+      .then((events: AgentEvent[]) => setActivities(events))
+      .catch(() => undefined);
+  }, [sessionId]);
 
   useEffect(() => {
     const unsubscribe = getApi().subscribeToAgentStream((event: AgentStreamEvent) => {
       if (sessionId && event.sessionId !== sessionId) return;
+
+      if (event.type === 'activity') {
+        setActivities((previous) => {
+          if (previous.some((item) => item.id === event.event.id)) return previous;
+          return [...previous, event.event].sort(
+            (a, b) => a.createdAt - b.createdAt || a.sequence - b.sequence,
+          );
+        });
+        setStatus(event.event.summary);
+      }
 
       if (event.type === 'text-delta') {
         setStatus(null);
@@ -202,6 +282,7 @@ export function LearnPage() {
           handle: event.handle,
           claimSummary: event.claimSummary,
           sourceBlockId: event.sourceBlockId,
+          evidence: event.evidence,
           label: formatCitationLabel({
             handle: event.handle,
             sourceTitle: source?.title,
@@ -213,7 +294,13 @@ export function LearnPage() {
         });
         if (event.sourceBlockId) {
           setActiveBlockId(event.sourceBlockId);
+          const citedBlock = blocks.find((block) => block.id === event.sourceBlockId);
+          if (citedBlock?.pageStart != null) setActivePage(citedBlock.pageStart);
           setActiveReferenceHandle(event.handle);
+        }
+        if (event.evidence) {
+          setActiveEvidence(event.evidence);
+          if (event.evidence.pageNumber != null) setActivePage(event.evidence.pageNumber);
         }
       }
       if (event.type === 'final') {
@@ -261,10 +348,32 @@ export function LearnPage() {
     await getApi().sendAgentMessage({ sessionId, message: text });
   };
 
-  const jumpToCitation = (citation: { handle: string; sourceBlockId?: number }) => {
+  const jumpToCitation = (citation: {
+    handle: string;
+    sourceBlockId?: number;
+    evidence?: EvidenceReference;
+  }) => {
     if (!citation.sourceBlockId) return;
     setActiveBlockId(citation.sourceBlockId);
+    const block = blocks.find((candidate) => candidate.id === citation.sourceBlockId);
+    if (block?.pageStart != null) setActivePage(block.pageStart);
+    if (citation.evidence) {
+      setActiveEvidence(citation.evidence);
+      if (citation.evidence.pageNumber != null) setActivePage(citation.evidence.pageNumber);
+    }
     setActiveReferenceHandle(citation.handle);
+    setNarrowTab('source');
+  };
+
+  const jumpToActivity = (activity: AgentEvent) => {
+    const rawIds = activity.details.sourceBlockIds;
+    if (!Array.isArray(rawIds)) return;
+    const blockId = rawIds.find((value): value is number => typeof value === 'number');
+    if (blockId == null) return;
+    const block = blocks.find((candidate) => candidate.id === blockId);
+    if (!block) return;
+    setActiveBlockId(block.id);
+    if (block.pageStart != null) setActivePage(block.pageStart);
     setNarrowTab('source');
   };
 
@@ -341,7 +450,7 @@ export function LearnPage() {
       <div className="learn-toolbar row" style={{ justifyContent: 'space-between' }}>
         <div>
           <p className="muted" style={{ margin: 0 }}>
-            <Link to={`/sources/${sourceId}`}>Source</Link>
+            {sourceId ? <Link to={`/sources/${sourceId}`}>Source</Link> : <span>Scope</span>}
             {studioId ? (
               <>
                 {' · '}
@@ -350,7 +459,7 @@ export function LearnPage() {
             ) : null}
           </p>
           <h1 className="page-title" style={{ marginBottom: 0 }}>
-            {source?.title ?? title}
+            {source?.title ?? (location.state?.collectionId ? 'Collection lesson' : title)}
           </h1>
         </div>
         <div className="learn-toolbar-actions">
@@ -385,6 +494,16 @@ export function LearnPage() {
         </div>
       </div>
 
+      <div className="learn-scope">
+        <span className="learn-scope-label">Learning scope</span>
+        <span className="learn-scope-chip">{scopeLabel}</span>
+        {studioId ? (
+          <Link className="learn-scope-change" to={`/studios/${studioId}`}>
+            Change
+          </Link>
+        ) : null}
+      </div>
+
       {showDiag && diag?.modelId ? (
         <p className="muted diag-line">
           Dev · model {diag.modelId}
@@ -397,8 +516,29 @@ export function LearnPage() {
           className={`learn-pane source-pane${narrowTab === 'source' ? ' show-mobile' : ''}`}
         >
           <h2 className="pane-label">Source</h2>
-          {blocks.length === 0 ? (
-            <p className="muted">Content is still being prepared.</p>
+          {source?.kind === 'pdf' && source.activeVersionId ? (
+            <PdfViewer
+              sourceVersionId={source.activeVersionId}
+              initialPage={activePage}
+              highlights={
+                activeEvidence && activeEvidence.sourceVersionId === source.activeVersionId
+                  ? [
+                      {
+                        id: activeEvidence.id,
+                        pageNumber: activeEvidence.pageNumber ?? activePage ?? 1,
+                        quads: activeEvidence.quads,
+                        active: true,
+                      },
+                    ]
+                  : []
+              }
+            />
+          ) : blocks.length === 0 ? (
+            <p className="muted">
+              {sourceId
+                ? 'Content is still being prepared.'
+                : 'This lesson is scoped across the selected sources. Citations will open the supporting source.'}
+            </p>
           ) : (
             blocks.map((block) => {
               const blockHandles = citedHandlesByBlock.get(block.id) ?? [];
@@ -466,6 +606,47 @@ export function LearnPage() {
         >
           <h2 className="pane-label">Teacher</h2>
           {status ? <p className="muted status-line">{status}</p> : null}
+          {activities.length > 0 ? (
+            <div className="agent-activity" aria-live="polite">
+              {(() => {
+                const latest = activities[activities.length - 1];
+                if (!latest) return null;
+                return (
+                  <>
+                    <div className="agent-activity-current">
+                      <span aria-hidden="true">{activityIcon(latest)}</span>
+                      <span>{latest.summary}</span>
+                      {busy ? <span className="agent-activity-pulse" title="Active" /> : null}
+                    </div>
+                    <details>
+                      <summary>Show activity ({activities.length})</summary>
+                      <ol className="agent-activity-list">
+                        {activities.map((activity) => {
+                          const hasSourceTargets = Array.isArray(activity.details.sourceBlockIds);
+                          return (
+                            <li key={activity.id}>
+                              <button
+                                type="button"
+                                className="agent-activity-item"
+                                disabled={!hasSourceTargets}
+                                onClick={() => jumpToActivity(activity)}
+                              >
+                                <span aria-hidden="true">{activityIcon(activity)}</span>
+                                <span>{activity.summary}</span>
+                                {activity.durationMs != null ? (
+                                  <small>{activity.durationMs} ms</small>
+                                ) : null}
+                              </button>
+                            </li>
+                          );
+                        })}
+                      </ol>
+                    </details>
+                  </>
+                );
+              })()}
+            </div>
+          ) : null}
           <div className="chat-log">
             {lines.length === 0 && !streaming && !busy ? (
               <p className="muted">Starting your lesson…</p>

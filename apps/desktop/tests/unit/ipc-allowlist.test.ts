@@ -24,7 +24,9 @@ describe('preload / IPC allowlist', () => {
   it('registers handlers only for known IpcChannels values', () => {
     const ipc = readFileSync(ipcPath, 'utf8');
     const allowed = new Set(Object.values(IpcChannels));
-    const handles = [...ipc.matchAll(/handle\(IpcChannels\.(\w+)/g)].map((m) => m[1]!);
+    const handles = [...ipc.matchAll(/handle\(IpcChannels\.(\w+)/g)]
+      .map((m) => m[1])
+      .filter((name): name is string => Boolean(name));
     expect(handles.length).toBeGreaterThan(20);
     for (const name of handles) {
       const value = IpcChannels[name as keyof typeof IpcChannels];
@@ -33,5 +35,12 @@ describe('preload / IPC allowlist', () => {
     // No stringly-typed shell/exec escape hatches
     expect(ipc).not.toMatch(/handle\(['"]shell:exec['"]/);
     expect(ipc).not.toMatch(/handle\(['"]sql:run['"]/);
+  });
+
+  it('enforces sender validation in the shared handler wrapper', () => {
+    const ipc = readFileSync(ipcPath, 'utf8');
+    expect(ipc).toMatch(
+      /function handle\(channel: string, fn: IpcHandler\): void \{[\s\S]*?validateSender\(event\)/,
+    );
   });
 });

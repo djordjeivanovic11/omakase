@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { DemonstratedLevelSchema, EpochMillisSchema, MasteryLevelSchema } from './common.js';
 import { UuidV7Schema } from './ids.js';
+import { EvidenceReferenceSchema } from './pdf.js';
 import { LocatorSchema } from './sources.js';
 
 export const ProbeQuestionTypeSchema = z.enum([
@@ -73,6 +74,7 @@ export type ProbeTurnResult = z.infer<typeof ProbeTurnResultSchema>;
 export const CitationProposalSchema = z.object({
   handle: z.string().min(1).max(64),
   claimSummary: z.string().max(300),
+  evidence: EvidenceReferenceSchema.optional(),
 });
 export type CitationProposal = z.infer<typeof CitationProposalSchema>;
 

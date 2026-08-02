@@ -1,11 +1,17 @@
 import type { AgentRuntimeContext } from '@omakase/contracts';
 import { SearchLibraryInputSchema } from '@omakase/contracts';
-import { type ToolSet, tool } from 'ai';
+import { type ToolExecutionOptions, type ToolSet, tool } from 'ai';
 import type Database from 'better-sqlite3';
 import { z } from 'zod';
 import type { EmbeddingService } from '../retrieval/embeddings.js';
 import { resolveStudioSourceVersionIds } from '../retrieval/fts.js';
 import { hybridRetrieve } from '../retrieval/hybrid.js';
+import {
+  createToolCallBudgetState,
+  type ModeBudget,
+  recordToolCall,
+  userFacingBudgetMessage,
+} from './budgets.js';
 
 function assertStudioScope(studioId: string, ctx: AgentRuntimeContext): void {
   if (ctx.studioId && ctx.studioId !== studioId) {
@@ -14,12 +20,34 @@ function assertStudioScope(studioId: string, ctx: AgentRuntimeContext): void {
 }
 
 function assertSourceScope(sourceIds: string[], ctx: AgentRuntimeContext): void {
-  if (ctx.sourceIds.length === 0) return;
+  if (ctx.sourceIds.length === 0 && !ctx.sourceScope) return;
   for (const id of sourceIds) {
     if (!ctx.sourceIds.includes(id)) {
       throw new Error(`Source ${id} outside session scope`);
     }
   }
+}
+
+function resolveRuntimeVersionIds(
+  db: Database.Database,
+  studioId: string,
+  ctx: AgentRuntimeContext,
+  requestedSourceIds?: string[],
+): string[] {
+  assertStudioScope(studioId, ctx);
+  if (!ctx.sourceScope) {
+    return resolveStudioSourceVersionIds(db, studioId, requestedSourceIds);
+  }
+  if (requestedSourceIds) assertSourceScope(requestedSourceIds, ctx);
+  const allowed = requestedSourceIds ? new Set(requestedSourceIds) : null;
+  const versionIds = ctx.resolvedSourceVersionIds;
+  if (!allowed) return versionIds;
+  if (versionIds.length === 0) return [];
+  const placeholders = versionIds.map(() => '?').join(', ');
+  const rows = db
+    .prepare(`SELECT id, source_id FROM source_versions WHERE id IN (${placeholders})`)
+    .all(...versionIds) as Array<{ id: string; source_id: string }>;
+  return rows.filter((row) => allowed.has(row.source_id)).map((row) => row.id);
 }
 
 export interface AgentToolDeps {
@@ -42,6 +70,12 @@ export function buildAgentTools(deps: AgentToolDeps): ToolSet {
         studioId: input.studioId,
         query: input.query,
         sourceIds: input.sourceIds,
+        sourceVersionIds: resolveRuntimeVersionIds(
+          db,
+          input.studioId,
+          runtimeContext,
+          input.sourceIds,
+        ),
         maxResults: input.limit,
       });
       return blocks.map((b, i) => ({
@@ -63,14 +97,10 @@ export function buildAgentTools(deps: AgentToolDeps): ToolSet {
     execute: async (input) => {
       assertStudioScope(input.studioId, runtimeContext);
       assertSourceScope([input.sourceId], runtimeContext);
-      const versionRow = db
-        .prepare(
-          `SELECT sav.source_version_id AS version_id
-           FROM studio_sources ss
-           JOIN source_active_versions sav ON sav.source_id = ss.source_id
-           WHERE ss.studio_id = ? AND ss.source_id = ?`,
-        )
-        .get(input.studioId, input.sourceId) as { version_id: string } | undefined;
+      const versionIds = resolveRuntimeVersionIds(db, input.studioId, runtimeContext, [
+        input.sourceId,
+      ]);
+      const versionRow = versionIds[0] ? { version_id: versionIds[0] } : undefined;
       if (!versionRow) return { headings: [] };
 
       const rows = db
@@ -96,11 +126,7 @@ export function buildAgentTools(deps: AgentToolDeps): ToolSet {
     }),
     execute: async (input) => {
       assertStudioScope(input.studioId, runtimeContext);
-      const versionIds = resolveStudioSourceVersionIds(
-        db,
-        input.studioId,
-        runtimeContext.sourceIds,
-      );
+      const versionIds = resolveRuntimeVersionIds(db, input.studioId, runtimeContext);
       if (versionIds.length === 0) return { blocks: [] };
       const placeholders = input.sourceBlockIds.map(() => '?').join(', ');
       const versionPlaceholders = versionIds.map(() => '?').join(', ');
@@ -133,12 +159,27 @@ export function buildAgentTools(deps: AgentToolDeps): ToolSet {
         .get(input.studioId) as
         | { name: string; primary_objective: string | null; teaching_style: string }
         | undefined;
-      const sources = db
-        .prepare(
-          `SELECT s.id, s.title, ss.role FROM studio_sources ss
-           JOIN sources s ON s.id = ss.source_id WHERE ss.studio_id = ?`,
-        )
-        .all(input.studioId) as Array<{ id: string; title: string; role: string }>;
+      const allowedSourceIds = runtimeContext.sourceScope ? runtimeContext.sourceIds : undefined;
+      const sources = allowedSourceIds
+        ? allowedSourceIds.length === 0
+          ? []
+          : (db
+              .prepare(
+                `SELECT s.id, s.title, ss.role FROM studio_sources ss
+                 JOIN sources s ON s.id = ss.source_id
+                 WHERE ss.studio_id = ? AND ss.source_id IN (${allowedSourceIds.map(() => '?').join(', ')})`,
+              )
+              .all(input.studioId, ...allowedSourceIds) as Array<{
+              id: string;
+              title: string;
+              role: string;
+            }>)
+        : (db
+            .prepare(
+              `SELECT s.id, s.title, ss.role FROM studio_sources ss
+               JOIN sources s ON s.id = ss.source_id WHERE ss.studio_id = ?`,
+            )
+            .all(input.studioId) as Array<{ id: string; title: string; role: string }>);
       return { studio, sources };
     },
   });
@@ -200,6 +241,7 @@ export function buildAgentTools(deps: AgentToolDeps): ToolSet {
         studioId: probe.studio_id,
         query: input.query,
         sourceIds: runtimeContext.sourceIds,
+        sourceVersionIds: resolveRuntimeVersionIds(db, probe.studio_id, runtimeContext),
         maxResults: input.limit,
       });
       return blocks.map((b, i) => ({
@@ -238,4 +280,36 @@ export function toolsForMode(mode: 'learn' | 'research' | 'probe', all: ToolSet)
   if (all.get_studio_state) selected.get_studio_state = all.get_studio_state;
   if (all.get_learner_state) selected.get_learner_state = all.get_learner_state;
   return selected;
+}
+
+function fingerprintToolInput(input: unknown): string {
+  try {
+    return JSON.stringify(input).slice(0, 4000);
+  } catch {
+    return String(input).slice(0, 4000);
+  }
+}
+
+/** Apply the mode's real tool-call limits to every executable local tool. */
+export function withToolCallBudget(tools: ToolSet, limits: ModeBudget): ToolSet {
+  const state = createToolCallBudgetState();
+  const wrapped: ToolSet = {};
+  for (const [name, definition] of Object.entries(tools)) {
+    if (typeof definition.execute !== 'function') {
+      wrapped[name] = definition;
+      continue;
+    }
+    const execute = definition.execute;
+    wrapped[name] = {
+      ...definition,
+      execute: (input: unknown, options: ToolExecutionOptions<unknown>) => {
+        const decision = recordToolCall(state, name, fingerprintToolInput(input), limits);
+        if (!decision.allowed) {
+          throw new Error(userFacingBudgetMessage(decision.reason ?? 'max_tool_calls'));
+        }
+        return execute(input, options);
+      },
+    };
+  }
+  return wrapped;
 }

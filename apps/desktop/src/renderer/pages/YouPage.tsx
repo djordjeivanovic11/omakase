@@ -200,9 +200,8 @@ export function YouPage() {
       <section className="card stack" style={{ marginTop: 'var(--space-lg)' }}>
         <h2>Browser capture</h2>
         <p className="muted">
-          Install the Omakase extension, then paste the ID from{' '}
-          <code>chrome://extensions</code> (or Edge’s extensions page) so this Mac can accept
-          captures.
+          Install the Omakase extension, then paste the ID from <code>chrome://extensions</code> (or
+          Edge’s extensions page) so this Mac can accept captures.
         </p>
         {extensionIds.length > 0 ? (
           <ul className="muted">

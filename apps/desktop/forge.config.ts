@@ -162,11 +162,7 @@ const config = {
  * Fail packaging when a native binding cannot resolve its shared library.
  * Electron can only dlopen files that sit outside the asar archive.
  */
-function assertNativeLibrariesUnpacked(
-  appBundle: string,
-  platform: string,
-  arch: string,
-): void {
+function assertNativeLibrariesUnpacked(appBundle: string, platform: string, arch: string): void {
   const unpackedRoot = path.join(
     appBundle,
     'Contents',

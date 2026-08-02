@@ -39,7 +39,10 @@ export function formatCitationLabelFromBlock(
 
 /** Strip bare [S1]-style markers from displayed prose (chips carry the links). */
 export function stripCitationHandles(markdown: string): string {
-  return markdown.replace(/\s*\[S\d+\]/g, '').replace(/[ \t]+\n/g, '\n').trim();
+  return markdown
+    .replace(/\s*\[S\d+\]/g, '')
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
 }
 
 export function citationOrdinal(handle: string): number | null {

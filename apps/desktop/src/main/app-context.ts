@@ -14,6 +14,7 @@ import {
 } from '../core/retrieval/embeddings.js';
 import { SourcesRepo } from '../core/sources/sources-repo.js';
 import { AssetStore } from '../core/storage/asset-store.js';
+import { CollectionsRepo } from '../core/storage/collections-repo.js';
 import type { DatabaseHandle } from '../core/storage/database.js';
 import { openDatabase } from '../core/storage/database.js';
 import { type AppPaths, resolveAppPaths } from '../core/storage/paths.js';
@@ -30,6 +31,7 @@ export interface AppContext {
   db: DatabaseHandle;
   secretStore: SecretStore;
   studios: StudiosRepo;
+  collections: CollectionsRepo;
   sources: SourcesRepo;
   assets: AssetStore;
   jobs: JobQueue;
@@ -86,6 +88,7 @@ export function createAppContext(): AppContext {
   };
 
   const studios = new StudiosRepo(db.db);
+  const collections = new CollectionsRepo(db.db);
   const sources = new SourcesRepo(db.db);
   const assets = new AssetStore(db.db, paths.assetsDir);
   const jobs = new JobQueue(db.db);
@@ -103,6 +106,7 @@ export function createAppContext(): AppContext {
     db,
     secretStore,
     studios,
+    collections,
     sources,
     assets,
     jobs,

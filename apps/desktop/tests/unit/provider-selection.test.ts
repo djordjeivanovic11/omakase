@@ -101,15 +101,20 @@ describe('provider selection safety', () => {
       expect(isMockProviderRuntimeAllowed({ packaged: false })).toBe(false);
       expect(shouldUseMockProvider(mockProfile, 'mock-learn-v1', { packaged: false })).toBe(false);
     });
-    withMockEnv({
-      OMAKASE_MOCK_PROVIDER: '1',
-      OMAKASE_TEST: '1',
-      VITEST: undefined,
-      NODE_ENV: undefined,
-    }, () => {
-      expect(isMockProviderRuntimeAllowed({ packaged: false })).toBe(false);
-      expect(shouldUseMockProvider(mockProfile, 'mock-learn-v1', { packaged: false })).toBe(false);
-    });
+    withMockEnv(
+      {
+        OMAKASE_MOCK_PROVIDER: '1',
+        OMAKASE_TEST: '1',
+        VITEST: undefined,
+        NODE_ENV: undefined,
+      },
+      () => {
+        expect(isMockProviderRuntimeAllowed({ packaged: false })).toBe(false);
+        expect(shouldUseMockProvider(mockProfile, 'mock-learn-v1', { packaged: false })).toBe(
+          false,
+        );
+      },
+    );
     withMockEnv({ OMAKASE_MOCK_PROVIDER: '1', OMAKASE_TEST: '1', VITEST: 'true' }, () => {
       expect(isMockProviderRuntimeAllowed({ packaged: false })).toBe(true);
       expect(shouldUseMockProvider(mockProfile, 'mock-learn-v1', { packaged: false })).toBe(true);

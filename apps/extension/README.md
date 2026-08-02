@@ -11,6 +11,7 @@ No model calls run in the extension.
 - Destination: **Inbox** or **Studio**
 - Native messaging via `@omakase/contracts` schemas (`NativeMessageSchema`, `BrowserCapturePayloadSchema`)
 - Local retry queue in extension storage when the desktop app is unavailable
+- Durable post-submit status polling so a cold-start capture is not treated as complete before desktop ingestion finishes
 - Simple popup UI with connection and queue status
 
 ## Build
@@ -56,6 +57,17 @@ Ping:
 { "type": "ping", "requestId": "<uuidv7>" }
 ```
 
+Capture status checks use the same authenticated native host and carry only the
+capture's UUIDv7 request identifier:
+
+```json
+{
+  "type": "capture_status",
+  "requestId": "<uuidv7>",
+  "payload": { "externalRequestId": "<uuidv7>" }
+}
+```
+
 The desktop native host lives in `apps/desktop/src/main/native-host.ts` and imports captures through `importBrowserCapture`.
 
 ## Expected extension IDs (desktop allowlist)
@@ -91,7 +103,7 @@ No broad host permissions are declared. Capture runs when the user opens the pop
 
 ## Offline queue
 
-When the native host is missing or Omakase is closed, captures are persisted under `omakase_capture_queue_v1` in `chrome.storage.local`. The background worker retries on startup, on a timer, and after successful sends.
+When the native host is missing or Omakase is closed, captures are persisted under `omakase_capture_queue_v1` in `chrome.storage.local`. After the host accepts a capture, its request ID is retained under `omakase_pending_captures_v1` until the desktop database reports `imported`, `failed`, or `rejected`. The background worker retries on startup, on a timer, and after successful sends.
 
 ## Project layout
 

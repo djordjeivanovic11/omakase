@@ -16,6 +16,8 @@ export interface HybridSearchOptions {
   studioId: string;
   query: string;
   sourceIds?: string[];
+  /** Immutable source-version scope captured when a session starts. */
+  sourceVersionIds?: string[];
   minResults?: number;
   maxResults?: number;
 }
@@ -83,7 +85,9 @@ export async function hybridRetrieve(
 ): Promise<RetrievedBlock[]> {
   const minResults = options.minResults ?? 8;
   const maxResults = options.maxResults ?? 32;
-  const versionIds = resolveStudioSourceVersionIds(db, options.studioId, options.sourceIds);
+  const versionIds = options.sourceVersionIds
+    ? [...new Set(options.sourceVersionIds)]
+    : resolveStudioSourceVersionIds(db, options.studioId, options.sourceIds);
   if (versionIds.length === 0) return [];
 
   const ftsHits = searchSourceBlocksFts(db, {

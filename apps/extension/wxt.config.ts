@@ -5,7 +5,7 @@ export default defineConfig({
   manifest: {
     name: 'Omakase',
     description: 'Save rendered webpages to your local Omakase learning studio.',
-    permissions: ['activeTab', 'storage', 'scripting', 'nativeMessaging'],
+    permissions: ['activeTab', 'storage', 'scripting', 'nativeMessaging', 'contextMenus'],
     action: {
       default_title: 'Save to Omakase',
     },

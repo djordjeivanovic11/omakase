@@ -3,6 +3,7 @@ import path from 'node:path';
 import type { BrowserCapturePayload, Source } from '@omakase/contracts';
 import type Database from 'better-sqlite3';
 import type { JobQueue } from '../jobs/queue.js';
+import { validateHttpUrl } from '../security/url-policy.js';
 import type { AssetStore } from '../storage/asset-store.js';
 import { normalizeTextForHash, sha256Hex } from '../storage/hash.js';
 import { nowMs } from '../storage/ids.js';
@@ -13,6 +14,12 @@ import type { SourcesRepo } from './sources-repo.js';
 
 const PARSER_ID = 'omakase-web';
 const PARSER_VERSION = '1.0.0';
+
+function requireHttpUrl(raw: string): string {
+  const result = validateHttpUrl(raw);
+  if (!result.ok || !result.url) throw new Error(result.reason ?? 'invalid_url');
+  return result.url.toString();
+}
 
 export interface WebIngestDeps {
   db: Database.Database;
@@ -67,11 +74,13 @@ async function ingestWebMarkdown(
   deps: WebIngestDeps,
   opts: IngestWebMarkdownOpts,
 ): Promise<WebIngestResult> {
+  const canonicalUrl = requireHttpUrl(opts.canonicalUrl);
+  const originalUrl = requireHttpUrl(opts.originalUrl ?? canonicalUrl);
   const sanitized = sanitizeWebMarkdown(opts.markdown);
   const normalizedText = normalizeTextForHash(sanitized);
   const normalizedHash = sha256Hex(normalizedText);
 
-  const existing = deps.sources.findSourceByCanonicalUrl(opts.canonicalUrl);
+  const existing = deps.sources.findSourceByCanonicalUrl(canonicalUrl);
   if (existing?.activeVersionId) {
     const version = deps.sources.getSourceVersion(existing.activeVersionId);
     if (version?.normalizedHash === normalizedHash) {
@@ -93,7 +102,10 @@ async function ingestWebMarkdown(
       `SELECT sv.id AS version_id, sv.source_id
        FROM source_versions sv
        JOIN sources s ON s.id = sv.source_id
-       WHERE sv.normalized_hash = ? AND s.lifecycle_status <> 'deleted'
+       WHERE sv.normalized_hash = ?
+         AND sv.status IN ('ready', 'needs_attention')
+         AND s.lifecycle_status <> 'deleted'
+         AND s.deleted_at IS NULL
        LIMIT 1`,
     )
     .get(normalizedHash) as { version_id: string; source_id: string } | undefined;
@@ -124,8 +136,8 @@ async function ingestWebMarkdown(
     kind: 'web',
     title: opts.title,
     author: opts.author ?? null,
-    canonicalUrl: opts.canonicalUrl,
-    originalUrl: opts.originalUrl ?? opts.canonicalUrl,
+    canonicalUrl,
+    originalUrl,
     publishedAt: opts.publishedAt ?? null,
     lifecycleStatus: opts.studioId ? 'active' : 'inbox',
     processingStatus: 'queued',
@@ -134,7 +146,7 @@ async function ingestWebMarkdown(
   });
 
   deps.sources.createProvenance(source.id, opts.provenanceType, {
-    originatingUrl: opts.canonicalUrl,
+    originatingUrl: canonicalUrl,
     metadata: opts.metadata ?? {},
   });
 
@@ -206,11 +218,12 @@ export async function importBrowserCapture(
   payload: BrowserCapturePayload,
   deps: WebIngestDeps,
 ): Promise<WebIngestResult> {
-  const canonicalUrl = payload.finalUrl ?? payload.url;
+  const canonicalUrl = requireHttpUrl(payload.finalUrl ?? payload.url);
+  const originalUrl = requireHttpUrl(payload.url);
   return ingestWebMarkdown(deps, {
     title: payload.title,
     canonicalUrl,
-    originalUrl: payload.url,
+    originalUrl,
     author: payload.author,
     publishedAt: payload.publishedAt,
     markdown: payload.markdown,
@@ -231,13 +244,14 @@ export async function importUrlMarkdown(
   deps: WebIngestDeps,
   opts?: { title?: string; studioId?: string },
 ): Promise<WebIngestResult> {
+  const safeUrl = requireHttpUrl(url);
   return ingestWebMarkdown(deps, {
-    title: opts?.title ?? url,
-    canonicalUrl: url,
-    originalUrl: url,
+    title: opts?.title ?? safeUrl,
+    canonicalUrl: safeUrl,
+    originalUrl: safeUrl,
     markdown,
     studioId: opts?.studioId,
     provenanceType: 'direct_fetch',
-    metadata: { fetchUrl: url },
+    metadata: { fetchUrl: safeUrl },
   });
 }

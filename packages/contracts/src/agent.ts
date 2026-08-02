@@ -1,12 +1,17 @@
 import { z } from 'zod';
+import { AgentEventSchema } from './activity.js';
 import { AgentModeSchema } from './common.js';
 import { UuidV7Schema } from './ids.js';
 import { LearningResponseSchema } from './learning.js';
+import { EvidenceReferenceSchema } from './pdf.js';
+import { SourceScopeSchema } from './scope.js';
 
 export const AgentRuntimeContextSchema = z.object({
   mode: AgentModeSchema,
   studioId: UuidV7Schema.optional(),
-  sourceIds: z.array(UuidV7Schema).max(50).default([]),
+  sourceIds: z.array(UuidV7Schema).max(1000).default([]),
+  sourceScope: SourceScopeSchema.optional(),
+  resolvedSourceVersionIds: z.array(UuidV7Schema).max(1000).default([]),
   providerProfileId: UuidV7Schema,
   modelId: z.string().min(1),
   sessionId: UuidV7Schema,
@@ -16,12 +21,23 @@ export const AgentRuntimeContextSchema = z.object({
 });
 export type AgentRuntimeContext = z.infer<typeof AgentRuntimeContextSchema>;
 
-export const StartLearnSessionInputSchema = z.object({
-  studioId: UuidV7Schema,
-  sourceId: UuidV7Schema.optional(),
-  objective: z.string().max(4000).optional(),
-  mode: z.enum(['learn', 'research']).default('learn'),
-});
+export const StartLearnSessionInputSchema = z
+  .object({
+    studioId: UuidV7Schema,
+    sourceId: UuidV7Schema.optional(),
+    scope: SourceScopeSchema.optional(),
+    objective: z.string().max(4000).optional(),
+    mode: z.enum(['learn', 'research']).default('learn'),
+  })
+  .superRefine((value, ctx) => {
+    if (value.sourceId && value.scope) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['scope'],
+        message: 'Use scope or sourceId, not both.',
+      });
+    }
+  });
 export type StartLearnSessionInput = z.infer<typeof StartLearnSessionInputSchema>;
 
 export const SendAgentMessageInputSchema = z.object({
@@ -29,6 +45,11 @@ export const SendAgentMessageInputSchema = z.object({
   message: z.string().min(1).max(20_000),
 });
 export type SendAgentMessageInput = z.infer<typeof SendAgentMessageInputSchema>;
+
+export const ListAgentActivityInputSchema = z.object({
+  sessionId: UuidV7Schema,
+});
+export type ListAgentActivityInput = z.infer<typeof ListAgentActivityInputSchema>;
 
 export const AgentStreamEventSchema = z.discriminatedUnion('type', [
   z.object({
@@ -55,6 +76,7 @@ export const AgentStreamEventSchema = z.discriminatedUnion('type', [
     handle: z.string(),
     sourceBlockId: z.number().int().positive(),
     claimSummary: z.string(),
+    evidence: EvidenceReferenceSchema.optional(),
   }),
   z.object({
     type: z.literal('final'),
@@ -72,13 +94,19 @@ export const AgentStreamEventSchema = z.discriminatedUnion('type', [
     type: z.literal('cancelled'),
     sessionId: UuidV7Schema,
   }),
+  z.object({
+    type: z.literal('activity'),
+    sessionId: UuidV7Schema,
+    runId: UuidV7Schema,
+    event: AgentEventSchema,
+  }),
 ]);
 export type AgentStreamEvent = z.infer<typeof AgentStreamEventSchema>;
 
 export const SearchLibraryInputSchema = z.object({
   query: z.string().min(1).max(2000),
   studioId: UuidV7Schema,
-  sourceIds: z.array(UuidV7Schema).max(50).optional(),
+  sourceIds: z.array(UuidV7Schema).max(1000).optional(),
   limit: z.number().int().min(1).max(30).default(12),
 });
 export type SearchLibraryInput = z.infer<typeof SearchLibraryInputSchema>;

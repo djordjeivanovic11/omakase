@@ -1,8 +1,9 @@
-import type { ProcessingStatus } from '@omakase/contracts';
+import type { DocumentAtom, ProcessingStatus } from '@omakase/contracts';
 import type Database from 'better-sqlite3';
 import type { JobQueue } from '../jobs/queue.js';
 import { nowMs } from '../storage/ids.js';
 import type { DraftBlock } from './block-builder.js';
+import { linkBlocksToDocumentAtoms, replaceDocumentAtoms } from './document-atoms-repo.js';
 import type { IngestionStageName, InsertBlockInput, SourcesRepo } from './sources-repo.js';
 
 export const STAGE_VERSION = '1.0.0';
@@ -39,6 +40,7 @@ export interface StageResult {
   normalizedHash?: string;
   blocks?: DraftBlock[];
   jobId?: string;
+  documentAtoms?: DocumentAtom[];
 }
 
 export interface IngestionHandlers {
@@ -80,9 +82,11 @@ export class IngestionPipeline {
     return null;
   }
 
-  async run(
-    input: RunIngestionInput,
-  ): Promise<{ finalStatus: 'ready' | 'needs_attention' | 'failed' }> {
+  async run(input: RunIngestionInput): Promise<{
+    finalStatus: 'ready' | 'needs_attention' | 'failed';
+    failedStage?: IngestionStageName;
+    error?: string;
+  }> {
     const stages = input.requestedStages ?? INGESTION_STAGE_ORDER;
     const ordered = INGESTION_STAGE_ORDER.filter((stage) => stages.includes(stage));
     const startStage = input.force
@@ -121,7 +125,11 @@ export class IngestionPipeline {
           code: 'missing_handler',
           message: `No handler for stage ${stage}`,
         });
-        return { finalStatus: 'failed' };
+        return {
+          finalStatus: 'failed',
+          failedStage: stage,
+          error: 'missing_handler',
+        };
       }
 
       const run = this.deps.sources.startStageRun(input.sourceVersionId, stage, STAGE_VERSION);
@@ -134,8 +142,12 @@ export class IngestionPipeline {
         if (stage === 'normalize') {
           normalizedHash = result.normalizedHash ?? null;
         }
-        if (stage === 'block' && result.blocks && result.blocks.length > 0) {
+        if (stage === 'structure' && result.documentAtoms) {
+          replaceDocumentAtoms(this.deps.db, input.sourceVersionId, result.documentAtoms);
+        }
+        if (stage === 'block' && result.blocks) {
           this.persistBlocks(input.sourceVersionId, result.blocks);
+          linkBlocksToDocumentAtoms(this.deps.db, input.sourceVersionId);
         }
 
         if (stage === 'index_lexical') {
@@ -155,7 +167,7 @@ export class IngestionPipeline {
           message: `${stage}: ${message}`,
         });
         this.deps.sources.updateSourceVersion(input.sourceVersionId, { status: 'failed' });
-        return { finalStatus: 'failed' };
+        return { finalStatus: 'failed', failedStage: stage, error: message };
       }
     }
 

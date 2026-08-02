@@ -24,6 +24,10 @@ export function searchSourceBlocksFts(db: Database.Database, options: FtsSearchO
     .map((term) => `"${term.replace(/"/g, '""')}"`)
     .join(' OR ');
 
+  if (options.sourceVersionIds && options.sourceVersionIds.length === 0) {
+    return [];
+  }
+
   if (options.sourceVersionIds && options.sourceVersionIds.length > 0) {
     const placeholders = options.sourceVersionIds.map(() => '?').join(', ');
     const sql = `
@@ -84,6 +88,7 @@ export function resolveStudioSourceVersionIds(
   studioId: string,
   sourceIds?: string[],
 ): string[] {
+  if (sourceIds && sourceIds.length === 0) return [];
   if (sourceIds && sourceIds.length > 0) {
     const placeholders = sourceIds.map(() => '?').join(', ');
     const rows = db
@@ -91,7 +96,11 @@ export function resolveStudioSourceVersionIds(
         `SELECT sav.source_version_id
          FROM studio_sources ss
          JOIN source_active_versions sav ON sav.source_id = ss.source_id
-         WHERE ss.studio_id = ? AND ss.source_id IN (${placeholders})`,
+         JOIN sources s ON s.id = ss.source_id
+         WHERE ss.studio_id = ?
+           AND ss.source_id IN (${placeholders})
+           AND s.lifecycle_status <> 'deleted'
+           AND s.deleted_at IS NULL`,
       )
       .all(studioId, ...sourceIds) as Array<{ source_version_id: string }>;
     return rows.map((r) => r.source_version_id);
@@ -102,7 +111,10 @@ export function resolveStudioSourceVersionIds(
       `SELECT sav.source_version_id
        FROM studio_sources ss
        JOIN source_active_versions sav ON sav.source_id = ss.source_id
-       WHERE ss.studio_id = ?`,
+       JOIN sources s ON s.id = ss.source_id
+       WHERE ss.studio_id = ?
+         AND s.lifecycle_status <> 'deleted'
+         AND s.deleted_at IS NULL`,
     )
     .all(studioId) as Array<{ source_version_id: string }>;
   return rows.map((r) => r.source_version_id);

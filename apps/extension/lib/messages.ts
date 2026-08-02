@@ -6,11 +6,14 @@ export type Destination = 'inbox' | 'studio';
 export interface StudioOption {
   id: string;
   name: string;
+  sourceCount?: number;
+  lastUsedAt?: number;
 }
 
 export interface PopupStatus {
   desktopConnected: boolean;
   queueLength: number;
+  processingCount?: number;
   studios: StudioOption[];
 }
 

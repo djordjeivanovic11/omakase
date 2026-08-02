@@ -23,29 +23,40 @@ function renderStatus(root: HTMLElement, status: PopupStatus) {
   statusEl.classList.remove('connected', 'offline');
   if (status.desktopConnected) {
     statusEl.classList.add('connected');
+    const processing = status.processingCount ?? 0;
     statusEl.textContent =
-      status.queueLength > 0
-        ? `Connected to Omakase. ${status.queueLength} capture(s) waiting to sync.`
+      status.queueLength > 0 || processing > 0
+        ? `Connected to Omakase.${
+            status.queueLength > 0 ? ` ${status.queueLength} waiting to sync.` : ''
+          }${processing > 0 ? ` ${processing} processing.` : ''}`
         : 'Connected to Omakase.';
   } else {
     statusEl.classList.add('offline');
     statusEl.textContent =
       status.queueLength > 0
         ? `Desktop app unavailable. ${status.queueLength} capture(s) queued locally.`
-        : 'Desktop app unavailable. Saves will queue locally.';
+        : status.processingCount && status.processingCount > 0
+          ? `Desktop app unavailable. ${status.processingCount} capture(s) are awaiting confirmation.`
+          : 'Desktop app unavailable. Saves will queue locally.';
   }
 }
 
-function renderStudios(select: HTMLSelectElement, status: PopupStatus) {
+function renderStudios(select: HTMLSelectElement, status: PopupStatus, filter = '') {
   select.replaceChildren();
   const placeholder = el('option', undefined, 'Select a Studio');
   placeholder.value = '';
   select.append(placeholder);
 
-  for (const studio of status.studios) {
+  const normalizedFilter = filter.trim().toLocaleLowerCase();
+  const studios = status.studios.filter((studio) =>
+    studio.name.toLocaleLowerCase().includes(normalizedFilter),
+  );
+  for (const studio of studios) {
     const option = el('option');
     option.value = studio.id;
-    option.textContent = studio.name;
+    const count = typeof studio.sourceCount === 'number' ? ` · ${studio.sourceCount} sources` : '';
+    const recent = studio.lastUsedAt ? ' · recent' : '';
+    option.textContent = `${studio.name}${count}${recent}`;
     select.append(option);
   }
 
@@ -120,9 +131,13 @@ async function main() {
 
   const studioField = el('div', 'field');
   studioField.append(el('label', undefined, 'Studio'));
+  const studioSearch = el('input');
+  studioSearch.type = 'search';
+  studioSearch.placeholder = 'Search Studios';
+  studioSearch.setAttribute('aria-label', 'Search Studios');
   const studioSelect = el('select', 'studio-select');
   studioSelect.disabled = true;
-  studioField.append(studioSelect);
+  studioField.append(studioSearch, studioSelect);
 
   const feedback = el('div', 'feedback');
 
@@ -149,13 +164,16 @@ async function main() {
   };
   inboxRadio.addEventListener('change', updateDestinationUi);
   studioRadio.addEventListener('change', updateDestinationUi);
+  studioSearch.addEventListener('input', () =>
+    renderStudios(studioSelect, status, studioSearch.value),
+  );
 
   let status: PopupStatus = { desktopConnected: false, queueLength: 0, studios: [] };
 
   const refreshStatus = async () => {
     status = await sendBackground<PopupStatus>({ type: 'get_status' });
     renderStatus(container, status);
-    renderStudios(studioSelect, status);
+    renderStudios(studioSelect, status, studioSearch.value);
     updateDestinationUi();
   };
 

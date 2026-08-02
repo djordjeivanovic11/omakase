@@ -77,9 +77,11 @@ describe('migration integration', () => {
       ]);
       const sources = new SourcesRepo(db);
       const source = sources.getSource(sourceId);
-      expect(source?.activeVersionId).toBeTruthy();
-      const blocks = sources.listBlocks(source!.activeVersionId!);
-      expect(sources.countFtsRows(source!.activeVersionId!)).toBe(blocks.length);
+      const activeVersionId = source?.activeVersionId;
+      expect(activeVersionId).toBeTruthy();
+      if (!activeVersionId) throw new Error('Expected an active source version');
+      const blocks = sources.listBlocks(activeVersionId);
+      expect(sources.countFtsRows(activeVersionId)).toBe(blocks.length);
 
       const projectorConcept = concepts.findOrCreate('Foreign Keys');
       events.append({
@@ -121,9 +123,10 @@ describe('migration integration', () => {
 
   it('matches canonical migration checksum for 0001', () => {
     const migrationsDir = defaultMigrationsDir();
-    const [migration] = loadMigrations(migrationsDir);
-    expect(migration?.version).toBe(1);
-    const raw = fs.readFileSync(migration!.filePath, 'utf8');
-    expect(canonicalMigrationChecksum(raw)).toBe(migration!.checksum);
+    const migration = loadMigrations(migrationsDir)[0];
+    if (!migration) throw new Error('Expected initial migration');
+    expect(migration.version).toBe(1);
+    const raw = fs.readFileSync(migration.filePath, 'utf8');
+    expect(canonicalMigrationChecksum(raw)).toBe(migration.checksum);
   });
 });

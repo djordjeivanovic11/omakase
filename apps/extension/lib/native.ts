@@ -1,6 +1,7 @@
 import {
   BrowserCapturePayloadSchema,
   CaptureNativePayloadSchema,
+  CaptureStatusPayloadSchema,
   NATIVE_MESSAGE_MAX_BYTES,
   type NativeMessage,
   NativeMessageSchema,
@@ -38,8 +39,11 @@ export function buildCaptureMessage(payload: unknown, requestId = uuidv7()): Nat
   const validatedPayload = CaptureNativePayloadSchema.parse(payload);
   BrowserCapturePayloadSchema.parse(validatedPayload);
   const message = NativeMessageSchema.parse({
+    protocolVersion: 1,
     type: 'capture',
     requestId,
+    timestamp: Date.now(),
+    idempotencyKey: validatedPayload.externalRequestId,
     payload: validatedPayload,
   });
   if (messageByteLength(message) > NATIVE_MESSAGE_MAX_BYTES) {
@@ -53,15 +57,32 @@ export function buildCaptureMessage(payload: unknown, requestId = uuidv7()): Nat
 
 export function buildPingMessage(requestId = uuidv7()): NativeMessage {
   return NativeMessageSchema.parse({
+    protocolVersion: 1,
     type: 'ping',
     requestId,
+    timestamp: Date.now(),
   });
 }
 
 export function buildListStudiosMessage(requestId = uuidv7()): NativeMessage {
   return NativeMessageSchema.parse({
+    protocolVersion: 1,
     type: 'list_studios',
     requestId,
+    timestamp: Date.now(),
+  });
+}
+
+export function buildCaptureStatusMessage(
+  externalRequestId: string,
+  requestId = uuidv7(),
+): NativeMessage {
+  return NativeMessageSchema.parse({
+    protocolVersion: 1,
+    type: 'capture_status',
+    requestId,
+    timestamp: Date.now(),
+    payload: CaptureStatusPayloadSchema.parse({ externalRequestId }),
   });
 }
 

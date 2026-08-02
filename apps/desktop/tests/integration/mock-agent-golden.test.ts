@@ -49,12 +49,49 @@ describe('mock agent golden path', () => {
       if (finalEvent?.type === 'final') {
         expect(finalEvent.result.citations.length).toBeGreaterThan(0);
         expect(finalEvent.result.answerMarkdown).toContain('[S1]');
+        expect(finalEvent.result.citations[0]?.evidence?.sourceBlockId).toBeDefined();
+        expect(finalEvent.result.citations[0]?.evidence?.sourceVersionId).toBeDefined();
       }
+
+      const activity = events.filter((e) => e.type === 'activity');
+      expect(activity.length).toBeGreaterThanOrEqual(3);
+      if (activity[0]?.type === 'activity') {
+        const persisted = ctx.db
+          .prepare(
+            'SELECT sequence, event_type FROM agent_events WHERE run_id = ? ORDER BY sequence',
+          )
+          .all(activity[0].runId) as Array<{ sequence: number; event_type: string }>;
+        expect(persisted.map((row) => row.sequence)).toEqual(persisted.map((_row, index) => index));
+        expect(persisted.map((row) => row.event_type)).toContain('SOURCE_RETRIEVED');
+        expect(persisted.map((row) => row.event_type)).toContain('CITATIONS_CHECKED');
+      }
+      const replayed = agent.listActivity(sessionId);
+      expect(replayed.length).toBe(activity.length);
+      expect(replayed.map((event) => event.sequence)).toEqual(
+        replayed.map((_event, index) => index),
+      );
 
       const citationRows = ctx.db
         .prepare('SELECT * FROM citations WHERE verification_status = ?')
         .all('verified') as unknown[];
       expect(citationRows.length).toBeGreaterThan(0);
+      const evidenceRows = ctx.db
+        .prepare(
+          `SELECT e.id, e.source_version_id, e.source_block_id, e.exact_quote,
+                  mc.id AS claim_id
+           FROM evidence e
+           JOIN claim_evidence ce ON ce.evidence_id = e.id
+           JOIN message_claims mc ON mc.id = ce.claim_id`,
+        )
+        .all() as Array<{
+        id: string;
+        source_version_id: string;
+        source_block_id: number;
+        exact_quote: string;
+        claim_id: string;
+      }>;
+      expect(evidenceRows.length).toBeGreaterThan(0);
+      expect(evidenceRows[0]?.exact_quote.length).toBeGreaterThan(0);
 
       const probeMachine = new ProbeMachine(
         ctx.db,

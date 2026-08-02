@@ -39,7 +39,10 @@ export function StudiosPage() {
 
   return (
     <div>
-      <div className="row" style={{ justifyContent: 'space-between', marginBottom: 'var(--space-lg)' }}>
+      <div
+        className="row"
+        style={{ justifyContent: 'space-between', marginBottom: 'var(--space-lg)' }}
+      >
         <div>
           <h1 className="page-title" style={{ marginBottom: '0.35rem' }}>
             Studios
@@ -69,13 +72,15 @@ export function StudiosPage() {
       )}
 
       {open ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setOpen(false)}>
+        <div className="modal-backdrop" role="presentation">
           <form
             className="modal-sheet stack"
-            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-studio-title"
             onSubmit={createStudio}
           >
-            <h2>New studio</h2>
+            <h2 id="new-studio-title">New studio</h2>
             <div className="form-field">
               <label htmlFor="studio-name">Name</label>
               <input
@@ -83,7 +88,6 @@ export function StudiosPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 required
-                autoFocus
               />
             </div>
             <div className="form-field">

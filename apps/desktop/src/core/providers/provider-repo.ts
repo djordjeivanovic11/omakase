@@ -6,10 +6,10 @@ import type {
 } from '@omakase/contracts';
 import { ProviderCapabilitiesSchema } from '@omakase/contracts';
 import type Database from 'better-sqlite3';
-import { defaultModelForProvider } from './model-defaults.js';
 import { newId, nowMs } from '../storage/ids.js';
 import type { SecretStore } from '../storage/secrets.js';
 import { maskKeySuffix } from '../storage/secrets.js';
+import { defaultModelForProvider } from './model-defaults.js';
 
 const DEFAULT_CAPABILITIES: ProviderCapabilities = {
   webSearch: false,

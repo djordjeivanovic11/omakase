@@ -28,9 +28,11 @@ export function cosineSimilarity(a: Float32Array, b: Float32Array): number {
   let normA = 0;
   let normB = 0;
   for (let i = 0; i < a.length; i++) {
-    dot += a[i]! * b[i]!;
-    normA += a[i]! * a[i]!;
-    normB += b[i]! * b[i]!;
+    const valueA = a[i] ?? 0;
+    const valueB = b[i] ?? 0;
+    dot += valueA * valueB;
+    normA += valueA * valueA;
+    normB += valueB * valueB;
   }
   if (normA === 0 || normB === 0) return 0;
   return dot / (Math.sqrt(normA) * Math.sqrt(normB));
@@ -49,6 +51,10 @@ export class ExactScanVectorIndex implements VectorIndex {
   ): VectorSearchHit[] {
     const limit = options.limit ?? 20;
     let rows: Array<{ source_block_id: number; vector: Buffer; source_version_id: string }>;
+
+    // An explicit empty scope means no sources. It must never widen into an
+    // unscoped library search.
+    if (options.sourceVersionIds && options.sourceVersionIds.length === 0) return [];
 
     if (options.sourceVersionIds && options.sourceVersionIds.length > 0) {
       const placeholders = options.sourceVersionIds.map(() => '?').join(', ');

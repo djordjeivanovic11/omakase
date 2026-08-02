@@ -43,6 +43,7 @@ function Shell() {
           <Route path="/" element={<TodayPage />} />
           <Route path="/studios" element={<StudiosPage />} />
           <Route path="/studios/:studioId" element={<StudioDetailPage />} />
+          <Route path="/studios/:studioId/learn" element={<LearnPage />} />
           <Route path="/studios/:studioId/probe" element={<ProbePage />} />
           <Route path="/inbox" element={<InboxPage />} />
           <Route path="/you" element={<YouPage />} />

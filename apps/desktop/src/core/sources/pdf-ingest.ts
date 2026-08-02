@@ -8,6 +8,7 @@ import { normalizeTextForHash, sha256Hex } from '../storage/hash.js';
 import { nowMs } from '../storage/ids.js';
 import type { StudiosRepo } from '../storage/studios-repo.js';
 import { enqueueEmbedJob, IngestionPipeline } from './ingestion-pipeline.js';
+import { extractPdfAtoms } from './pdf-atoms.js';
 import { buildPdfPageBlocks, extractPdfFromBytes } from './pdf-extract.js';
 import type { SourcesRepo } from './sources-repo.js';
 
@@ -70,7 +71,10 @@ export async function importPdfSource(
       `SELECT sv.id AS version_id, sv.source_id, sv.extraction_quality
        FROM source_versions sv
        JOIN sources s ON s.id = sv.source_id
-       WHERE sv.asset_hash = ? AND s.lifecycle_status <> 'deleted'
+       WHERE sv.asset_hash = ?
+         AND sv.status IN ('ready', 'needs_attention')
+         AND s.lifecycle_status <> 'deleted'
+         AND s.deleted_at IS NULL
        ORDER BY sv.version_number DESC LIMIT 1`,
     )
     .get(asset.sha256) as
@@ -152,7 +156,17 @@ export async function importPdfSource(
         normalizedText,
         normalizedHash,
       }),
-      structure: async () => ({ outputHash: sha256Hex(String(extraction.pageCount)) }),
+      structure: async () => {
+        const atoms = await extractPdfAtoms(bytes, version.id);
+        return {
+          outputHash: sha256Hex(
+            JSON.stringify(
+              atoms.map((atom) => [atom.pageNumber, atom.readingOrder, atom.text, atom.quads]),
+            ),
+          ),
+          documentAtoms: atoms,
+        };
+      },
       block: async () => ({
         outputHash: sha256Hex(blocks.map((b) => b.contentHash).join(':')),
         blocks,
@@ -166,7 +180,9 @@ export async function importPdfSource(
   });
 
   if (result.finalStatus === 'failed') {
-    throw new Error('PDF ingestion failed');
+    throw new Error(
+      `PDF ingestion failed at ${result.failedStage ?? 'unknown'}: ${result.error ?? 'unknown error'}`,
+    );
   }
 
   deps.sources.updateSourceVersion(version.id, {

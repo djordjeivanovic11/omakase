@@ -28,7 +28,9 @@ function PrimaryAction({ action }: { action: NextAction }) {
         <Button
           variant="ghost"
           onClick={() =>
-            void getApi().dismissTodayAction(action.id).then(() => window.location.reload())
+            void getApi()
+              .dismissTodayAction(action.id)
+              .then(() => window.location.reload())
           }
         >
           Not now
@@ -73,7 +75,9 @@ export function TodayPage() {
 
       {inboxCount > 0 ? (
         <p className="muted">
-          <Link to="/inbox">{inboxCount} item{inboxCount === 1 ? '' : 's'} waiting in Inbox</Link>
+          <Link to="/inbox">
+            {inboxCount} item{inboxCount === 1 ? '' : 's'} waiting in Inbox
+          </Link>
         </p>
       ) : null}
 

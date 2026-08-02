@@ -19,7 +19,7 @@ const service = new LocalEmbeddingService({ modelsDir });
 
 function cosine(a: Float32Array, b: Float32Array): number {
   let dot = 0;
-  for (let i = 0; i < a.length; i++) dot += a[i]! * b[i]!;
+  for (let i = 0; i < a.length; i++) dot += (a[i] ?? 0) * (b[i] ?? 0);
   return dot;
 }
 

@@ -4,6 +4,7 @@ import {
   type BrowserCapturePayload,
   BrowserCapturePayloadSchema,
   CaptureNativePayloadSchema,
+  CaptureStatusPayloadSchema,
   type NativeMessage,
   NativeMessageSchema,
 } from '@omakase/contracts';
@@ -48,16 +49,24 @@ export function startNativeHost(ctx: AppContext): NativeHostHandle {
     for (const file of fs.readdirSync(inboxDir)) {
       if (!file.endsWith('.json')) continue;
       const full = path.join(inboxDir, file);
+      const claimed = `${full}.processing`;
+      try {
+        // Claim before awaiting ingestion so overlapping polls or retries do
+        // not import the same inbox file twice.
+        fs.renameSync(full, claimed);
+      } catch {
+        continue;
+      }
       void (async () => {
         try {
-          const raw = fs.readFileSync(full, 'utf8');
+          const raw = fs.readFileSync(claimed, 'utf8');
           const message = NativeMessageSchema.parse(JSON.parse(raw));
           await handleNativeMessage(ctx, message);
-          fs.unlinkSync(full);
+          fs.unlinkSync(claimed);
         } catch (error) {
           log.warn('Rejected native inbox message', { err: error });
           try {
-            fs.renameSync(full, `${full}.rejected`);
+            fs.renameSync(claimed, `${full}.rejected`);
           } catch {
             // ignore
           }
@@ -73,7 +82,10 @@ export function startNativeHost(ctx: AppContext): NativeHostHandle {
   };
 }
 
-export function registerExtensionId(ctx: AppContext, extensionId: string): {
+export function registerExtensionId(
+  ctx: AppContext,
+  extensionId: string,
+): {
   ok: boolean;
   allowedExtensionIds: string[];
 } {
@@ -99,22 +111,132 @@ export async function handleNativeMessage(
   }
 
   if (message.type === 'list_studios') {
-    const studios = ctx.studios.list().map((studio) => ({ id: studio.id, name: studio.name }));
+    const studios = ctx.studios.list().map((studio) => {
+      const row = ctx.db.db
+        .prepare(
+          `SELECT COUNT(*) AS source_count
+           FROM studio_sources ss
+           JOIN sources s ON s.id = ss.source_id
+           WHERE ss.studio_id = ? AND s.deleted_at IS NULL AND s.lifecycle_status <> 'deleted'`,
+        )
+        .get(studio.id) as { source_count: number };
+      return { id: studio.id, name: studio.name, sourceCount: row.source_count };
+    });
     return { ok: true, payload: studios };
+  }
+
+  if (message.type === 'capture_status') {
+    const payload = CaptureStatusPayloadSchema.parse(message.payload);
+    const extensionId = message.extensionId ?? 'native-unknown';
+    const row = ctx.db.db
+      .prepare(
+        `SELECT status, source_id, error_code, error_message
+         FROM capture_requests
+         WHERE extension_id = ? AND external_request_id = ?`,
+      )
+      .get(extensionId, payload.externalRequestId) as
+      | {
+          status: string;
+          source_id: string | null;
+          error_code: string | null;
+          error_message: string | null;
+        }
+      | undefined;
+    return {
+      ok: true,
+      payload: row
+        ? {
+            status: row.status,
+            sourceId: row.source_id,
+            errorCode: row.error_code,
+            errorMessage: row.error_message,
+          }
+        : { status: 'pending' },
+    };
   }
 
   if (message.type === 'capture') {
     const payload = CaptureNativePayloadSchema.parse(message.payload) as BrowserCapturePayload;
     BrowserCapturePayloadSchema.parse(payload);
-    await importBrowserCapture(payload, {
-      db: ctx.db.db,
-      assets: ctx.assets,
-      sources: ctx.sources,
-      studios: ctx.studios,
-      jobs: ctx.jobs,
-      derivedDir: ctx.paths.derivedDir,
-    });
-    return { ok: true };
+    const extensionId = message.extensionId ?? 'native-unknown';
+    const existing = ctx.db.db
+      .prepare(
+        `SELECT status, source_id FROM capture_requests
+         WHERE extension_id = ? AND external_request_id = ?`,
+      )
+      .get(extensionId, payload.externalRequestId) as
+      | { status: string; source_id: string | null }
+      | undefined;
+    if (existing?.status === 'imported') {
+      return {
+        ok: true,
+        payload: { status: 'imported', sourceId: existing.source_id, idempotent: true },
+      };
+    }
+    if (existing?.status === 'validating') {
+      return { ok: true, payload: { status: 'pending', idempotent: true } };
+    }
+
+    const receivedAt = Date.now();
+    ctx.db.db
+      .prepare(
+        `INSERT INTO capture_requests (
+          id, external_request_id, extension_id, browser, payload_json, status, received_at
+        ) VALUES (?, ?, ?, 'unknown', ?, 'validating', ?)
+        ON CONFLICT(extension_id, external_request_id) DO UPDATE SET
+          payload_json = excluded.payload_json,
+          status = 'validating',
+          error_code = NULL,
+          error_message = NULL`,
+      )
+      .run(
+        message.requestId,
+        payload.externalRequestId,
+        extensionId,
+        JSON.stringify(payload),
+        receivedAt,
+      );
+
+    try {
+      const result = await importBrowserCapture(payload, {
+        db: ctx.db.db,
+        assets: ctx.assets,
+        sources: ctx.sources,
+        studios: ctx.studios,
+        jobs: ctx.jobs,
+        derivedDir: ctx.paths.derivedDir,
+      });
+      ctx.db.db
+        .prepare(
+          `UPDATE capture_requests SET status = 'imported', source_id = ?, completed_at = ?
+           WHERE extension_id = ? AND external_request_id = ?`,
+        )
+        .run(result.source.id, Date.now(), extensionId, payload.externalRequestId);
+      return {
+        ok: true,
+        payload: {
+          status: 'imported',
+          sourceId: result.source.id,
+          sourceVersionId: result.sourceVersionId,
+          deduped: result.deduped,
+        },
+      };
+    } catch (error) {
+      const messageText = error instanceof Error ? error.message : String(error);
+      ctx.db.db
+        .prepare(
+          `UPDATE capture_requests SET status = 'failed', error_code = ?, error_message = ?, completed_at = ?
+           WHERE extension_id = ? AND external_request_id = ?`,
+        )
+        .run(
+          'capture_failed',
+          messageText.slice(0, 400),
+          Date.now(),
+          extensionId,
+          payload.externalRequestId,
+        );
+      throw error;
+    }
   }
 
   return { ok: false, error: 'unsupported_message_type' };
@@ -131,7 +253,12 @@ export async function readStdioNativeMessage(): Promise<NativeMessage | null> {
         return;
       }
       try {
-        const length = chunks[0]!.readUInt32LE(0);
+        const firstChunk = chunks[0];
+        if (!firstChunk) {
+          resolve(null);
+          return;
+        }
+        const length = firstChunk.readUInt32LE(0);
         const body = Buffer.concat(chunks).subarray(4, 4 + length);
         resolve(NativeMessageSchema.parse(JSON.parse(body.toString('utf8'))));
       } catch {

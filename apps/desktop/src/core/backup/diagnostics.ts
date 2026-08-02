@@ -71,7 +71,8 @@ function readRedactedLogPreview(logsDir: string | undefined, maxLines = 20): str
     return ['(no log files yet — placeholder)'];
   }
 
-  const latest = files[0]!;
+  const latest = files[0];
+  if (!latest) return ['(no log files yet — placeholder)'];
   const content = fs.readFileSync(latest, 'utf8');
   const lines = content.split('\n').filter(Boolean).slice(-maxLines);
   return redactLogLines(lines);

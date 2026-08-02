@@ -3,7 +3,8 @@
 
 Speaks the browser native-messaging framing protocol (4-byte LE length + JSON)
 and drops validated captures into the desktop app's native-inbox directory so
-the running Omakase process can import them. Also answers ping and list_studios.
+the running Omakase process can import them. Also answers ping, list_studios,
+and durable capture status checks.
 """
 
 from __future__ import annotations
@@ -15,8 +16,10 @@ import struct
 import sys
 import uuid
 from pathlib import Path
+import re
 
 HOST_NAME = "com.omakase.desktop"
+EXTENSION_ID_PATTERN = re.compile(r"^[a-p]{32}$")
 
 
 def user_data_root() -> Path:
@@ -37,6 +40,32 @@ def db_path() -> Path:
     return user_data_root() / "library.sqlite"
 
 
+def allowed_extension_ids() -> set[str]:
+    path = user_data_root() / "native-host" / "allowed-extension-ids.json"
+    try:
+        parsed = json.loads(path.read_text(encoding="utf-8"))
+        return {
+            value
+            for value in parsed.get("ids", [])
+            if isinstance(value, str) and EXTENSION_ID_PATTERN.fullmatch(value)
+        }
+    except Exception:
+        return set()
+
+
+def caller_extension_id() -> str | None:
+    if len(sys.argv) < 2:
+        return None
+    origin = sys.argv[1]
+    prefix = "chrome-extension://"
+    if not origin.startswith(prefix) or not origin.endswith("/"):
+        return None
+    extension_id = origin[len(prefix) : -1]
+    if extension_id not in allowed_extension_ids():
+        return None
+    return extension_id
+
+
 def read_message() -> dict | None:
     raw_len = sys.stdin.buffer.read(4)
     if not raw_len or len(raw_len) < 4:
@@ -47,7 +76,11 @@ def read_message() -> dict | None:
     body = sys.stdin.buffer.read(length)
     if len(body) < length:
         return None
-    return json.loads(body.decode("utf-8"))
+    try:
+        parsed = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError):
+        return {"type": "invalid"}
+    return parsed if isinstance(parsed, dict) else {"type": "invalid"}
 
 
 def write_message(payload: dict) -> None:
@@ -65,18 +98,66 @@ def list_studios() -> list[dict]:
         conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
         try:
             rows = conn.execute(
-                "SELECT id, name FROM studios WHERE status != 'archived' ORDER BY updated_at DESC"
+                """
+                SELECT s.id, s.name, COUNT(ss.source_id) AS source_count
+                FROM studios s
+                LEFT JOIN studio_sources ss ON ss.studio_id = s.id
+                WHERE s.status != 'archived'
+                GROUP BY s.id
+                ORDER BY s.updated_at DESC
+                """,
             ).fetchall()
-            return [{"id": row[0], "name": row[1]} for row in rows]
+            return [
+                {"id": row[0], "name": row[1], "sourceCount": row[2]}
+                for row in rows
+            ]
         finally:
             conn.close()
     except Exception:
         return []
 
 
+def capture_status(extension_id: str, external_request_id: str) -> dict:
+    path = db_path()
+    if not path.exists():
+        return {"status": "pending"}
+    try:
+        conn = sqlite3.connect(f"file:{path}?mode=ro", uri=True)
+        try:
+            row = conn.execute(
+                """
+                SELECT status, source_id, error_code, error_message
+                FROM capture_requests
+                WHERE extension_id = ? AND external_request_id = ?
+                """,
+                (extension_id, external_request_id),
+            ).fetchone()
+            if row is None:
+                return {"status": "pending"}
+            return {
+                "status": row[0],
+                "sourceId": row[1],
+                "errorCode": row[2],
+                "errorMessage": row[3],
+            }
+        finally:
+            conn.close()
+    except Exception:
+        return {"status": "pending"}
+
+
 def handle(message: dict) -> dict:
     msg_type = message.get("type")
     request_id = message.get("requestId")
+
+    extension_id = caller_extension_id()
+    if not extension_id:
+        return {
+            "ok": False,
+            "type": "error",
+            "requestId": request_id,
+            "error": "extension_not_allowlisted",
+        }
 
     if msg_type == "ping":
         return {"ok": True, "type": "pong", "requestId": request_id}
@@ -84,9 +165,27 @@ def handle(message: dict) -> dict:
     if msg_type == "list_studios":
         return {"ok": True, "type": "list_studios", "requestId": request_id, "payload": list_studios()}
 
+    if msg_type == "capture_status":
+        payload = message.get("payload")
+        external_request_id = payload.get("externalRequestId") if isinstance(payload, dict) else None
+        if not isinstance(external_request_id, str):
+            return {
+                "ok": False,
+                "type": "error",
+                "requestId": request_id,
+                "error": "invalid_capture_status_payload",
+            }
+        return {
+            "ok": True,
+            "type": "capture_status",
+            "requestId": request_id,
+            "payload": capture_status(extension_id, external_request_id),
+        }
+
     if msg_type == "capture":
         drop = inbox_dir() / f"{uuid.uuid4()}.json"
-        drop.write_text(json.dumps(message), encoding="utf-8")
+        enriched = {**message, "extensionId": extension_id}
+        drop.write_text(json.dumps(enriched), encoding="utf-8")
         return {"ok": True, "type": "capture_ack", "requestId": request_id}
 
     return {

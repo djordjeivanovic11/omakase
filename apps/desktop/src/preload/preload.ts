@@ -3,6 +3,8 @@ import {
   AgentStreamEventSchema,
   AnswerProbeInputSchema,
   AssignSourceToStudioInputSchema,
+  CollectionMembershipInputSchema,
+  CreateCollectionInputSchema,
   CreateProviderProfileInputSchema,
   CreateStudioInputSchema,
   ImportPdfSourceInputSchema,
@@ -10,9 +12,11 @@ import {
   ImportTranscriptSourceInputSchema,
   ImportUrlSourceInputSchema,
   IpcChannels,
+  ListAgentActivityInputSchema,
   SendAgentMessageInputSchema,
   StartLearnSessionInputSchema,
   StartProbeInputSchema,
+  UpdateCollectionInputSchema,
   UpdateStudioInputSchema,
   UuidV7Schema,
 } from '@omakase/contracts';
@@ -33,7 +37,10 @@ const api = {
   testProvider: (profileId: string, modelId?: string) =>
     invoke(IpcChannels.providersTest, { profileId: UuidV7Schema.parse(profileId), modelId }),
   setDefaultModel: (profileId: string, modelId: string) =>
-    invoke(IpcChannels.providersSetDefaultModel, { profileId, modelId }),
+    invoke(IpcChannels.providersSetDefaultModel, {
+      profileId: UuidV7Schema.parse(profileId),
+      modelId: modelId.trim(),
+    }),
   deleteProvider: (profileId: string) =>
     invoke(IpcChannels.providersDelete, UuidV7Schema.parse(profileId)),
   listProviderModels: (profileId: string) =>
@@ -48,6 +55,21 @@ const api = {
   deleteStudio: (id: string) => invoke(IpcChannels.studiosDelete, UuidV7Schema.parse(id)),
   assignSourceToStudio: (input: unknown) =>
     invoke(IpcChannels.studiosAssignSource, AssignSourceToStudioInputSchema.parse(input)),
+
+  listCollections: (studioId: string) =>
+    invoke(IpcChannels.collectionsList, UuidV7Schema.parse(studioId)),
+  getCollection: (collectionId: string) =>
+    invoke(IpcChannels.collectionsGet, UuidV7Schema.parse(collectionId)),
+  createCollection: (input: unknown) =>
+    invoke(IpcChannels.collectionsCreate, CreateCollectionInputSchema.parse(input)),
+  updateCollection: (input: unknown) =>
+    invoke(IpcChannels.collectionsUpdate, UpdateCollectionInputSchema.parse(input)),
+  deleteCollection: (collectionId: string) =>
+    invoke(IpcChannels.collectionsDelete, UuidV7Schema.parse(collectionId)),
+  addSourceToCollection: (input: unknown) =>
+    invoke(IpcChannels.collectionsAddSource, CollectionMembershipInputSchema.parse(input)),
+  removeSourceFromCollection: (input: unknown) =>
+    invoke(IpcChannels.collectionsRemoveSource, CollectionMembershipInputSchema.parse(input)),
 
   listInboxSources: () => invoke(IpcChannels.sourcesListInbox),
   getSource: (id: string) => invoke(IpcChannels.sourcesGet, UuidV7Schema.parse(id)),
@@ -88,6 +110,8 @@ const api = {
     invoke(IpcChannels.agentSendMessage, SendAgentMessageInputSchema.parse(input)),
   cancelAgent: (sessionId: string) =>
     invoke(IpcChannels.agentCancel, UuidV7Schema.parse(sessionId)),
+  listAgentActivity: (sessionId: string) =>
+    invoke(IpcChannels.agentListActivity, ListAgentActivityInputSchema.parse({ sessionId })),
   subscribeToAgentStream: (callback: (event: AgentStreamEvent) => void) => {
     const listener = (_event: Electron.IpcRendererEvent, raw: unknown) => {
       callback(AgentStreamEventSchema.parse(raw));
@@ -137,7 +161,7 @@ const api = {
   openPath: (target: string) => invoke(IpcChannels.shellOpenPath, target),
 
   registerExtensionId: (extensionId: string) =>
-    invoke(IpcChannels.extensionRegisterId, String(extensionId)),
+    invoke(IpcChannels.extensionRegisterId, extensionId.trim()),
   listExtensionIds: () => invoke<string[]>(IpcChannels.extensionListIds),
 } as const;
 

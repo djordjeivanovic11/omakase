@@ -1,4 +1,4 @@
-import { RETRY_INTERVAL_MS, STUDIOS_CACHE_KEY } from '../lib/constants';
+import { LAST_STUDIO_KEY, RETRY_INTERVAL_MS, STUDIOS_CACHE_KEY } from '../lib/constants';
 import type {
   BackgroundMessage,
   BackgroundResponse,
@@ -10,12 +10,20 @@ import type {
   StudioOption,
 } from '../lib/messages';
 import {
+  buildCaptureMessage,
   buildListStudiosMessage,
   NativeMessagingError,
   pingNativeHost,
   sendNativeMessage,
 } from '../lib/native';
-import { enqueueCapture, flushQueue, getQueueLength } from '../lib/queue';
+import {
+  enqueueCapture,
+  flushQueue,
+  getPendingCaptureLength,
+  getQueueLength,
+  pollPendingCaptures,
+  recordPendingCapture,
+} from '../lib/queue';
 
 const CONTENT_SCRIPT = '/content-scripts/content.js';
 
@@ -42,9 +50,29 @@ async function refreshStudios(): Promise<StudioOption[]> {
             typeof (item as StudioOption).id === 'string' &&
             typeof (item as StudioOption).name === 'string',
         )
-        .map((item) => ({ id: item.id, name: item.name }));
-      await writeStudiosCache(studios);
-      return studios;
+        .map((item) => ({
+          id: item.id,
+          name: item.name,
+          sourceCount:
+            typeof (item as StudioOption).sourceCount === 'number'
+              ? (item as StudioOption).sourceCount
+              : undefined,
+        }));
+      const storedLast = await browser.storage.local.get(LAST_STUDIO_KEY);
+      const last = storedLast[LAST_STUDIO_KEY];
+      const lastStudioId =
+        last && typeof last === 'object' && 'studioId' in last
+          ? String((last as { studioId: unknown }).studioId)
+          : '';
+      const lastUsedAt =
+        last && typeof last === 'object' && 'usedAt' in last
+          ? Number((last as { usedAt: unknown }).usedAt)
+          : undefined;
+      const withRecent = studios.map((studio) =>
+        studio.id === lastStudioId ? { ...studio, lastUsedAt } : studio,
+      );
+      await writeStudiosCache(withRecent);
+      return withRecent;
     }
   } catch {
     // Desktop may not implement list_studios yet.
@@ -53,12 +81,13 @@ async function refreshStudios(): Promise<StudioOption[]> {
 }
 
 async function getStatus(): Promise<PopupStatus> {
-  const [desktopConnected, queueLength, studios] = await Promise.all([
+  const [desktopConnected, queueLength, processingCount, studios] = await Promise.all([
     pingNativeHost(),
     getQueueLength(),
+    getPendingCaptureLength(),
     refreshStudios(),
   ]);
-  return { desktopConnected, queueLength, studios };
+  return { desktopConnected, queueLength, processingCount, studios };
 }
 
 async function ensureCaptureListener(tabId: number): Promise<void> {
@@ -106,13 +135,20 @@ async function captureActiveTab(request: CaptureRequest): Promise<CaptureRespons
   }
 
   try {
-    const sent = await sendNativeMessage({
-      type: 'capture',
-      requestId: extracted.payload.externalRequestId,
-      payload: extracted.payload,
-    });
+    const captureMessage = buildCaptureMessage(
+      extracted.payload,
+      extracted.payload.externalRequestId,
+    );
+    const sent = await sendNativeMessage(captureMessage);
     if (sent.ok) {
+      await recordPendingCapture(captureMessage);
+      if (request.studioId) {
+        await browser.storage.local.set({
+          [LAST_STUDIO_KEY]: { studioId: request.studioId, usedAt: Date.now() },
+        });
+      }
       void flushQueue();
+      await openOmakase(extracted.payload.externalRequestId);
       return {
         ok: true,
         title: extracted.pageTitle,
@@ -130,6 +166,7 @@ async function captureActiveTab(request: CaptureRequest): Promise<CaptureRespons
   }
 
   await enqueueCapture(extracted.payload);
+  await openOmakase(extracted.payload.externalRequestId);
   return {
     ok: true,
     queued: true,
@@ -138,8 +175,17 @@ async function captureActiveTab(request: CaptureRequest): Promise<CaptureRespons
   };
 }
 
+async function openOmakase(requestId: string): Promise<void> {
+  try {
+    await browser.tabs.create({ url: `omakase://capture/${encodeURIComponent(requestId)}` });
+  } catch {
+    // The queue remains durable if protocol registration is unavailable.
+  }
+}
+
 export default defineBackground(() => {
   void flushQueue();
+  void pollPendingCaptures();
 
   browser.runtime.onInstalled.addListener(() => {
     void flushQueue();
@@ -149,8 +195,24 @@ export default defineBackground(() => {
     void flushQueue();
   });
 
+  browser.contextMenus?.create({
+    id: 'omakase-save-page',
+    title: 'Save page to Omakase',
+    contexts: ['page', 'selection'],
+  });
+
+  browser.contextMenus?.onClicked.addListener((info) => {
+    if (info.menuItemId !== 'omakase-save-page') return;
+    void captureActiveTab({
+      includeSelection: Boolean(info.selectionText?.trim()),
+      userNote: '',
+      destination: 'inbox',
+    });
+  });
+
   setInterval(() => {
     void flushQueue();
+    void pollPendingCaptures();
   }, RETRY_INTERVAL_MS);
 
   browser.runtime.onMessage.addListener((message, _sender, sendResponse) => {

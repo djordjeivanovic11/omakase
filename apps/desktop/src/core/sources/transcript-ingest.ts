@@ -67,7 +67,10 @@ export async function importTranscriptSource(
       `SELECT sv.id AS version_id, sv.source_id
        FROM source_versions sv
        JOIN sources s ON s.id = sv.source_id
-       WHERE sv.normalized_hash = ? AND s.lifecycle_status <> 'deleted'
+       WHERE sv.normalized_hash = ?
+         AND sv.status IN ('ready', 'needs_attention')
+         AND s.lifecycle_status <> 'deleted'
+         AND s.deleted_at IS NULL
        LIMIT 1`,
     )
     .get(normalizedHash) as { version_id: string; source_id: string } | undefined;

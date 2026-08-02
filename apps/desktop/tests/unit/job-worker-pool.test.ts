@@ -24,7 +24,8 @@ describe('local job worker pool', () => {
       for (let i = 0; i < LOCAL_JOB_WORKER_COUNT; i += 1) {
         const job = queue.claimNext(`worker-${i}`, ['embed_source_version']);
         expect(job).not.toBeNull();
-        claimed.push(job!.id);
+        if (!job) throw new Error('Expected a job to be claimed');
+        claimed.push(job.id);
       }
       expect(new Set(claimed).size).toBe(LOCAL_JOB_WORKER_COUNT);
       expect(queue.claimNext('worker-extra', ['embed_source_version'])).not.toBeNull();

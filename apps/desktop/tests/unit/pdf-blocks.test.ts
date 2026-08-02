@@ -35,7 +35,9 @@ describe('PDF block building', () => {
   });
 
   it('skips pages with no extractable text', () => {
-    expect(buildPdfPageBlocks([{ pageNumber: 1, text: '   \n\n  ', charCount: 0 }])).toHaveLength(0);
+    expect(buildPdfPageBlocks([{ pageNumber: 1, text: '   \n\n  ', charCount: 0 }])).toHaveLength(
+      0,
+    );
   });
 
   it('flags a scanned-looking document as needing attention', () => {

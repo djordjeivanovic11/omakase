@@ -20,7 +20,9 @@ function importsOf(file: string): string[] {
   const text = readFileSync(file, 'utf8');
   const out: string[] = [];
   const re = /from\s+['"]([^'"]+)['"]/g;
-  for (const match of text.matchAll(re)) out.push(match[1]!);
+  for (const match of text.matchAll(re)) {
+    if (match[1]) out.push(match[1]);
+  }
   return out;
 }
 

@@ -1,7 +1,12 @@
 import type { NativeMessage } from '@omakase/contracts';
 import { uuidv7 } from 'uuidv7';
-import { MAX_QUEUE_ATTEMPTS, QUEUE_STORAGE_KEY } from './constants';
-import { buildCaptureMessage, type NativeSendResult, sendNativeMessage } from './native';
+import { PENDING_CAPTURE_STORAGE_KEY, QUEUE_STORAGE_KEY } from './constants';
+import {
+  buildCaptureMessage,
+  buildCaptureStatusMessage,
+  type NativeSendResult,
+  sendNativeMessage,
+} from './native';
 
 export interface QueuedCapture {
   id: string;
@@ -9,6 +14,17 @@ export interface QueuedCapture {
   message: NativeMessage;
   attempts: number;
   lastError?: string;
+  lastAttemptAt?: number;
+}
+
+export interface PendingCapture {
+  id: string;
+  submittedAt: number;
+  message: NativeMessage;
+  attempts: number;
+  lastStatus?: string;
+  lastError?: string;
+  lastCheckedAt?: number;
 }
 
 async function readQueue(): Promise<QueuedCapture[]> {
@@ -20,6 +36,17 @@ async function readQueue(): Promise<QueuedCapture[]> {
 
 async function writeQueue(items: QueuedCapture[]): Promise<void> {
   await browser.storage.local.set({ [QUEUE_STORAGE_KEY]: items });
+}
+
+async function readPending(): Promise<PendingCapture[]> {
+  const stored = await browser.storage.local.get(PENDING_CAPTURE_STORAGE_KEY);
+  const value = stored[PENDING_CAPTURE_STORAGE_KEY];
+  if (!Array.isArray(value)) return [];
+  return value as PendingCapture[];
+}
+
+async function writePending(items: PendingCapture[]): Promise<void> {
+  await browser.storage.local.set({ [PENDING_CAPTURE_STORAGE_KEY]: items });
 }
 
 export async function getQueueLength(): Promise<number> {
@@ -41,9 +68,69 @@ export async function enqueueCapture(payload: unknown): Promise<QueuedCapture> {
   return item;
 }
 
+export async function recordPendingCapture(message: NativeMessage): Promise<void> {
+  const pending = await readPending();
+  if (pending.some((item) => item.message.idempotencyKey === message.idempotencyKey)) return;
+  pending.push({ id: uuidv7(), submittedAt: Date.now(), message, attempts: 0 });
+  await writePending(pending);
+}
+
+export async function getPendingCaptureLength(): Promise<number> {
+  return (await readPending()).length;
+}
+
+export async function pollPendingCaptures(): Promise<{
+  completed: number;
+  failed: number;
+  remaining: number;
+}> {
+  const pending = await readPending();
+  if (pending.length === 0) return { completed: 0, failed: 0, remaining: 0 };
+
+  const remaining: PendingCapture[] = [];
+  let completed = 0;
+  let failed = 0;
+  for (const item of pending) {
+    const externalRequestId = item.message.idempotencyKey;
+    if (!externalRequestId) {
+      remaining.push(item);
+      continue;
+    }
+    try {
+      const result = await sendNativeMessage(buildCaptureStatusMessage(externalRequestId));
+      const payload = result.response as { status?: string } | undefined;
+      const status = payload?.status ?? 'pending';
+      if (status === 'imported') {
+        completed += 1;
+        continue;
+      }
+      if (status === 'failed' || status === 'rejected') {
+        failed += 1;
+        continue;
+      }
+      remaining.push({
+        ...item,
+        attempts: item.attempts + 1,
+        lastStatus: status,
+        lastCheckedAt: Date.now(),
+      });
+    } catch (error) {
+      remaining.push({
+        ...item,
+        attempts: item.attempts + 1,
+        lastError: error instanceof Error ? error.message : 'status_check_failed',
+        lastCheckedAt: Date.now(),
+      });
+    }
+  }
+  await writePending(remaining);
+  return { completed, failed, remaining: remaining.length };
+}
+
 export async function flushQueue(): Promise<{ sent: number; failed: number; remaining: number }> {
   const queue = await readQueue();
   if (queue.length === 0) {
+    await pollPendingCaptures();
     return { sent: 0, failed: 0, remaining: 0 };
   }
 
@@ -64,21 +151,20 @@ export async function flushQueue(): Promise<{ sent: number; failed: number; rema
 
     if (result.ok) {
       sent += 1;
+      await recordPendingCapture(item.message);
       continue;
     }
 
     failed += 1;
-    const attempts = item.attempts + 1;
-    if (attempts >= MAX_QUEUE_ATTEMPTS) {
-      continue;
-    }
     remaining.push({
       ...item,
-      attempts,
+      attempts: item.attempts + 1,
       lastError: result.error,
+      lastAttemptAt: Date.now(),
     });
   }
 
   await writeQueue(remaining);
+  await pollPendingCaptures();
   return { sent, failed, remaining: remaining.length };
 }

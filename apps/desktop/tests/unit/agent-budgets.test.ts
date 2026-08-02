@@ -1,4 +1,6 @@
-import { describe, expect, it } from 'vitest';
+import { tool } from 'ai';
+import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import {
   clampRetrievedBlocks,
   createToolCallBudgetState,
@@ -6,6 +8,7 @@ import {
   recordToolCall,
   userFacingBudgetMessage,
 } from '../../src/core/agent/budgets.js';
+import { withToolCallBudget } from '../../src/core/agent/tools.js';
 
 describe('agent budgets', () => {
   it('stops identical tool-call loops', () => {
@@ -36,5 +39,24 @@ describe('agent budgets', () => {
   it('returns plain-language budget messages', () => {
     expect(userFacingBudgetMessage('timeout')).not.toMatch(/RAG|embedding|MCP/i);
     expect(userFacingBudgetMessage('max_tool_calls')).toMatch(/narrower question/i);
+  });
+
+  it('applies the call budget to executable tools', async () => {
+    const execute = vi.fn(async () => 'ok');
+    const tools = withToolCallBudget(
+      {
+        echo: tool({ inputSchema: z.object({ value: z.string() }), execute }),
+      },
+      { ...MODE_LIMITS.learn, maxToolCalls: 1, maxIdenticalToolCalls: 5 },
+    );
+    const wrapped = tools.echo as {
+      execute: (input: { value: string }, options: never) => Promise<string>;
+    };
+
+    await expect(wrapped.execute({ value: 'one' }, undefined as never)).resolves.toBe('ok');
+    await expect(
+      Promise.resolve().then(() => wrapped.execute({ value: 'two' }, undefined as never)),
+    ).rejects.toThrow(/narrower question/i);
+    expect(execute).toHaveBeenCalledTimes(1);
   });
 });

@@ -28,5 +28,9 @@ export function reciprocalRankFusion<T>(lists: RankedItem<T>[][], k = 60): RrfSc
 
   return [...scores.entries()]
     .map(([item, { score, ranks }]) => ({ item, score, ranks }))
-    .sort((a, b) => b.score - a.score || a.ranks[0]! - b.ranks[0]!);
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        (a.ranks[0] ?? Number.POSITIVE_INFINITY) - (b.ranks[0] ?? Number.POSITIVE_INFINITY),
+    );
 }
